@@ -1,18 +1,24 @@
 {
+    "version": "0.2.0",
     "configurations": [
-        {
-            "name": "Python 调试程序: 当前文件",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe"
+      {
+        "name": "Python: FastAPI",
+        "type": "python",
+        "request": "launch",
+        "module": "uvicorn",
+        "args": [
+          "api.app:app",
+          "--host",
+          "0.0.0.0",
+          "--port",
+          "8000",
+          "--reload"
+        ],
+        "jinja": true,
+        "justMyCode": false,
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}"
         }
+      }
     ]
-}
+  }

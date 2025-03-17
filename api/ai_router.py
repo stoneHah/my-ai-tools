@@ -1,111 +1,129 @@
 """
-AI服务通用路由模块
-提供统一的API接口访问各种AI服务
+AI服务路由模块
+提供统一的API端点访问各种AI服务
 """
-from typing import Dict, List, Any, Optional
-
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from datetime import datetime
+import json
 
-from api.models import ChatRequest, ChatResponse, ServicesListResponse
+import logging
+
+# 配置日志记录器
+logger = logging.getLogger(__name__)
+
+from api.models import (
+    ChatRequest, ChatResponse, ServicesListResponse,
+    ConversationResponse
+)
 from ai_services.base import AIServiceRegistry
 
 # 创建API路由器
 router = APIRouter(prefix="/ai", tags=["ai"])
 
+
 @router.get("/services", response_model=ServicesListResponse)
-async def list_services(service_type: Optional[str] = None):
+async def list_services():
     """
     列出所有可用的AI服务
-    
-    Args:
-        service_type: 可选的服务类型过滤
     """
-    services = AIServiceRegistry.list_services(service_type)
+    services = AIServiceRegistry.list_services()
     return {"services": services}
+
+
+@router.post("/conversations", response_model=ConversationResponse)
+async def create_conversation():
+    """
+    为指定AI服务创建新会话
+    
+    Returns:
+        ConversationResponse: 包含新会话ID的响应
+    """
+    # TODO 这边应该独立于具体的服务
+    # 获取服务实例
+    service = AIServiceRegistry.get_service("coze","chat")
+    if not service:
+        raise HTTPException(status_code=404, detail=f"找不到服务: {service_name}")
+    
+    # 调用服务
+    try:
+        conversation_id = await service.create_conversation()
+        return {
+            "conversation_id": conversation_id,
+            "created_at": datetime.now().isoformat()
+        }
+    except NotImplementedError:
+        logger.warning(f"服务 coze 不支持创建会话")
+        raise HTTPException(status_code=501, detail=f"服务 {service_name} 不支持创建会话")
+    except Exception as e:
+        # 记录详细的异常信息
+        logger.error(f"创建会话失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"创建会话失败: {str(e)}")
+
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat_completion(request: ChatRequest):
     """
-    与AI服务进行对话（非流式响应）
+    与指定AI服务进行对话（非流式响应）
     
     Args:
-        request: 聊天请求
+        service_name: 服务名称，如coze、openai等
+        
+    Returns:
+        ChatResponse: 对话完成结果
     """
+    # 获取服务实例
+    service = AIServiceRegistry.get_service(service_name)
+    if not service:
+        raise HTTPException(status_code=404, detail=f"找不到服务: {service_name}")
+    
+    # 调用服务
     try:
-        if request.stream:
-            raise HTTPException(
-                status_code=400,
-                detail="此端点不支持流式响应，请将stream参数设置为false或使用/chat/stream端点"
-            )
-        
-        service = AIServiceRegistry.get_service(
-            service_type=request.service_type,
-            service_name=request.service_name
-        )
-        
-        if not service:
-            raise HTTPException(
-                status_code=404,
-                detail=f"未找到服务: {request.service_name} (类型: {request.service_type})"
-            )
-        
-        parameters = request.parameters or {}
         response = await service.chat_completion(
-            messages=request.messages,
-            **parameters
+            message=request.message,
+            conversation_id=request.conversation_id,
+            **request.parameters
         )
-        
         return response
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"调用AI服务出错：{str(e)}")
+        raise HTTPException(status_code=500, detail=f"服务调用出错: {str(e)}")
+
 
 @router.post("/chat/stream")
 async def stream_chat_completion(request: ChatRequest):
     """
-    与AI服务进行对话（流式响应）
+    与指定AI服务进行对话（流式响应）
     
-    返回一个Server-Sent Events (SSE)流，客户端可以实时接收AI服务的回复
+    Args:
+        service_name: 服务名称，如coze、openai等
+        service_type: 服务类型，如chat、workflow等
+        
+    Returns:
+        StreamingResponse: 流式对话完成结果
     """
-    try:
-        service = AIServiceRegistry.get_service(
-            service_type=request.service_type,
-            service_name=request.service_name
-        )
-        
-        if not service:
-            raise HTTPException(
-                status_code=404,
-                detail=f"未找到服务: {request.service_name} (类型: {request.service_type})"
-            )
-        
-        async def event_generator():
-            """生成SSE事件流"""
-            try:
-                parameters = request.parameters or {}
-                async for chunk in service.stream_chat_completion(
-                    messages=request.messages,
-                    **parameters
-                ):
-                    # 将每个块序列化为JSON并按SSE格式输出
-                    if isinstance(chunk, dict):
-                        chunk_json = chunk
-                    else:
-                        chunk_json = {"error": "无效的响应格式"}
-                    
-                    yield f"data: {chunk_json}\n\n"
-                
-                # 流结束标记
-                yield "data: [DONE]\n\n"
-            except Exception as e:
-                # 出错时发送错误信息
-                error_json = {"error": {"message": str(e)}}
-                yield f"data: {error_json}\n\n"
-                yield "data: [DONE]\n\n"
-        
-        return StreamingResponse(
-            event_generator(),
-            media_type="text/event-stream"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"创建流式响应时出错：{str(e)}")
+    # 获取服务实例
+    service = AIServiceRegistry.get_service(request.service_name, request.service_type)
+    if not service:
+        raise HTTPException(status_code=404, detail=f"找不到服务: {request.service_name}")
+    
+    # 生成事件流
+    async def event_generator():
+        try:
+            async for chunk in service.stream_chat_completion(
+                message=request.message,
+                conversation_id=request.conversation_id,
+                **request.parameters
+            ):
+                # 在API层将标准字典格式转换为SSE格式
+                yield f"data: {json.dumps(chunk)}\n\n"
+            
+        except Exception as e:
+            logger.error(f"流式对话失败: {str(e)}", exc_info=True)
+            # 出错时发送错误信息
+            error_json = {"error": {"message": str(e)}}
+            yield f"data: {json.dumps(error_json)}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )

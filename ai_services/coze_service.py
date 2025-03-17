@@ -3,12 +3,17 @@ Coze AI服务实现
 实现Coze智能体的接口
 """
 import os
+import datetime
+import json
+import logging
 from typing import Dict, List, Any, Optional, AsyncGenerator
 
-from cozepy import AsyncCoze, TokenAuth
+from cozepy import Coze, TokenAuth,ChatEventType, Message
 
 from ai_services.base import AIServiceBase, AIServiceRegistry
 
+# 配置日志记录器
+logger = logging.getLogger(__name__)
 
 class CozeService(AIServiceBase):
     """Coze AI服务实现"""
@@ -18,94 +23,153 @@ class CozeService(AIServiceBase):
         初始化Coze服务
         
         Args:
-            api_token: Coze API访问令牌
-            api_base: Coze API基础URL，默认为None（使用SDK默认值）
-            bot_id: 默认使用的Bot ID
+            api_token: Coze API令牌
+            api_base: Coze API基础URL，默认为None，使用SDK默认值
+            bot_id: 默认机器人ID，如果不提供则需要在每次调用时指定
         """
         self.api_token = api_token
         self.api_base = api_base
         self.default_bot_id = bot_id
         
-        # 创建异步客户端
-        self.client = AsyncCoze(
+        # 创建异步Coze客户端
+        self.client = Coze(
             auth=TokenAuth(api_token),
             base_url=api_base
         )
-    
+        
     @property
     def service_name(self) -> str:
+        """服务名称"""
         return "coze"
-    
+
     @property
     def service_type(self) -> str:
+        """服务类型"""
         return "chat"
     
-    async def chat_completion(self, 
-                             messages: List[Dict[str, Any]], 
-                             **kwargs) -> Dict[str, Any]:
+    async def create_conversation(self, **kwargs) -> str:
         """
-        聊天完成接口
+        创建新的会话
         
         Args:
-            messages: 消息列表
-            **kwargs: 其他参数，包括bot_id
+            **kwargs: 其他参数
             
         Returns:
-            完成结果
+            会话ID字符串
         """
-        bot_id = kwargs.get("bot_id", self.default_bot_id)
-        if not bot_id:
-            raise ValueError("bot_id必须在参数中提供或在初始化时设置")
         
-        response = await self.client.chat.completions.create(
-            bot_id=bot_id,
-            messages=messages,
-            stream=False
-        )
-        
-        return response.model_dump()
+        # 仅返回会话ID字符串
+        return self.client.conversations.create().id
     
-    async def stream_chat_completion(self, 
-                                   messages: List[Dict[str, Any]], 
-                                   **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+    async def chat_completion(self, 
+                            message: str,
+                            conversation_id: Optional[str] = None,
+                            **kwargs) -> Dict[str, Any]:
         """
-        流式聊天完成接口
+        发送消息并获取回复（非流式）
         
         Args:
-            messages: 消息列表
-            **kwargs: 其他参数，包括bot_id
+            message: 用户消息
+            conversation_id: 会话ID
+            **kwargs: 其他参数，可以包含bot_id等
             
-        Yields:
-            流式完成结果
+        Returns:
+            服务回复
         """
         bot_id = kwargs.get("bot_id", self.default_bot_id)
         if not bot_id:
-            raise ValueError("bot_id必须在参数中提供或在初始化时设置")
+            raise ValueError("未提供bot_id，请在参数中指定或在初始化服务时设置默认值")
         
-        stream = await self.client.chat.completions.create(
+        
+        # 调用Coze API
+        response = await self.client.chat.completions.create(
             bot_id=bot_id,
-            messages=messages,
-            stream=True
+            messages=[{"role": "user", "content": message}],
+            conversation_id=conversation_id
         )
         
-        async for chunk in stream:
-            yield chunk.model_dump()
+        
+        # 构建响应
+        result = {
+            "id": response.id,
+            "message": response.choices[0].message.content,
+            "role": "assistant"
+        }
+        
+        # 如果有会话ID，则包含在响应中
+        if conversation_id:
+            result["conversation_id"] = conversation_id
+        
+        return result
+    
+    async def stream_chat_completion(self, 
+                                   message: str,
+                                   conversation_id: Optional[str] = None,
+                                   **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        流式发送消息并获取回复
+        
+        Args:
+            message: 用户消息
+            conversation_id: 会话ID
+            **kwargs: 其他参数，可以包含bot_id等
+            
+        Yields:
+            流式回复的每个部分（标准字典格式，不是SSE格式）
+        """
+        # 获取机器人ID
+        bot_id = kwargs.get('bot_id', self.default_bot_id)
+        if not bot_id:
+            raise ValueError("必须提供bot_id参数或在初始化时设置默认bot_id")
+        
+        try:
+        
+            # 正确处理流式响应
+            for event in self.client.chat.stream(
+                bot_id=bot_id,
+                user_id="user", 
+                additional_messages=[Message.build_user_question_text(message)],
+                conversation_id=conversation_id
+            ):
+                # 只处理消息增量事件
+                if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
+                    print(event)
+                    message = event.message
+                
+                    # 构造返回的响应格式
+                    yield {
+                        "content": message.content,
+                        "role": message.role,
+                    }
+
+                if event.event == ChatEventType.CONVERSATION_CHAT_COMPLETED:
+                    pass
+        except Exception as e:
+            # 记录详细错误信息
+            logger.error(f"流式聊天出错: {str(e)}", exc_info=True)
+            raise
+        
 
 
-# 自动注册服务
-def register_coze_service():
-    """从环境变量获取配置并注册Coze服务"""
+def register_coze_service() -> Optional[CozeService]:
+    """
+    注册Coze服务
+    
+    Returns:
+        Coze服务实例，如果缺少必要的环境变量则返回None
+    """
     api_token = os.getenv("COZE_API_TOKEN")
+    if not api_token:
+        return None
+        
     api_base = os.getenv("COZE_API_BASE")
     default_bot_id = os.getenv("COZE_DEFAULT_BOT_ID")
     
-    if api_token:
-        service = CozeService(
-            api_token=api_token,
-            api_base=api_base,
-            bot_id=default_bot_id
-        )
-        AIServiceRegistry.register(service)
-        return service
+    service = CozeService(
+        api_token=api_token,
+        api_base=api_base,
+        bot_id=default_bot_id
+    )
     
-    return None
+    AIServiceRegistry.register(service)
+    return service

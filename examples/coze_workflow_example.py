@@ -1,157 +1,182 @@
 """
 Coze工作流使用示例
-演示如何通过AI中台服务调用Coze工作流
+演示如何使用Coze工作流API
 """
+import os
 import json
 import asyncio
+from typing import Optional
 import sseclient
 import requests
-from typing import Dict, Any, Optional
+from dotenv import load_dotenv
 
-class WorkflowClient:
-    """Coze工作流客户端"""
+# 加载环境变量
+load_dotenv()
+
+# API地址
+API_BASE_URL = "http://localhost:8000"
+# 从环境变量获取工作流ID
+DEFAULT_WORKFLOW_ID = os.getenv("COZE_DEFAULT_WORKFLOW_ID", "")
+
+
+def run_workflow(message: str, workflow_id: Optional[str] = None):
+    """
+    运行工作流（非流式）
     
-    def __init__(self, api_url: str = "http://localhost:8000"):
-        """
-        初始化客户端
-        
-        Args:
-            api_url: API服务的URL
-        """
-        self.api_url = api_url
+    Args:
+        message: 输入消息
+        workflow_id: 工作流ID，如果不提供则使用环境变量中的默认值
     
-    def run_workflow(self, 
-                   workflow_id: str, 
-                   input_text: str) -> Dict[str, Any]:
-        """
-        运行工作流（非流式）
+    Returns:
+        工作流运行结果
+    """
+    workflow_id = workflow_id or DEFAULT_WORKFLOW_ID
+    if not workflow_id:
+        raise ValueError("未提供workflow_id，请指定或设置COZE_DEFAULT_WORKFLOW_ID环境变量")
+    
+    url = f"{API_BASE_URL}/ai/workflow/coze_workflow/run"
+    data = {
+        "message": message,
+        "stream": False,
+        "parameters": {
+            "workflow_id": workflow_id
+        }
+    }
+    
+    response = requests.post(url, json=data)
+    response.raise_for_status()
+    return response.json()
+
+
+def stream_workflow(message: str, workflow_id: Optional[str] = None):
+    """
+    流式运行工作流
+    
+    Args:
+        message: 输入消息
+        workflow_id: 工作流ID，如果不提供则使用环境变量中的默认值
+    
+    Returns:
+        完整输出结果
+    """
+    workflow_id = workflow_id or DEFAULT_WORKFLOW_ID
+    if not workflow_id:
+        raise ValueError("未提供workflow_id，请指定或设置COZE_DEFAULT_WORKFLOW_ID环境变量")
+    
+    url = f"{API_BASE_URL}/ai/workflow/coze_workflow/stream"
+    data = {
+        "message": message,
+        "stream": True,
+        "parameters": {
+            "workflow_id": workflow_id
+        }
+    }
+    
+    response = requests.post(url, json=data, stream=True)
+    response.raise_for_status()
+    
+    # 使用SSE客户端处理事件流
+    client = sseclient.SSEClient(response)
+    
+    full_content = ""
+    for event in client.events():
+        if event.data == "[DONE]":
+            break
         
-        Args:
-            workflow_id: 工作流ID
-            input_text: 输入文本
-            
-        Returns:
-            工作流运行结果
-        """
-        url = f"{self.api_url}/ai/chat"
-        response = requests.post(
-            url,
-            json={
-                "service_type": "workflow",
-                "service_name": "coze_workflow",
-                "messages": [
-                    {"role": "user", "content": input_text}
-                ],
+        try:
+            data = json.loads(event.data)
+            if "delta" in data:
+                full_content += data["delta"]
+                print(data["delta"], end="", flush=True)
+        except json.JSONDecodeError:
+            print(f"无法解析JSON: {event.data}")
+    
+    print()  # 换行
+    return full_content
+
+
+def interactive_demo():
+    """交互式工作流演示"""
+    print("=== Coze工作流交互式演示 ===")
+    print("工作流ID:", DEFAULT_WORKFLOW_ID or "未设置")
+    
+    if not DEFAULT_WORKFLOW_ID:
+        workflow_id = input("请输入工作流ID: ")
+    else:
+        workflow_id = DEFAULT_WORKFLOW_ID
+        
+    if not workflow_id:
+        print("未提供工作流ID，退出演示")
+        return
+    
+    print("\n开始与工作流交互（输入'exit'退出）")
+    
+    conversation_id = None
+    
+    while True:
+        user_input = input("\n输入: ")
+        if user_input.lower() == "exit":
+            break
+        
+        print("输出: ", end="")
+        try:
+            data = {
+                "message": user_input,
                 "parameters": {
                     "workflow_id": workflow_id
-                },
-                "stream": False
+                }
             }
-        )
-        response.raise_for_status()
-        return response.json()
-    
-    def stream_workflow(self, 
-                      workflow_id: str, 
-                      input_text: str, 
-                      callback=None) -> str:
-        """
-        流式运行工作流
-        
-        Args:
-            workflow_id: 工作流ID
-            input_text: 输入文本
-            callback: 处理每个响应块的回调函数
             
-        Returns:
-            完整响应文本
-        """
-        url = f"{self.api_url}/ai/chat/stream"
-        response = requests.post(
-            url,
-            json={
-                "service_type": "workflow",
-                "service_name": "coze_workflow",
-                "messages": [
-                    {"role": "user", "content": input_text}
-                ],
-                "parameters": {
-                    "workflow_id": workflow_id
-                },
-                "stream": True
-            },
-            stream=True
-        )
-        response.raise_for_status()
-        
-        # 使用SSE客户端处理事件流
-        client = sseclient.SSEClient(response)
-        
-        full_text = ""
-        for event in client.events():
-            if event.data == "[DONE]":
-                break
+            if conversation_id:
+                data["conversation_id"] = conversation_id
+            
+            url = f"{API_BASE_URL}/ai/workflow/coze_workflow/stream"
+            response = requests.post(url, json=data, stream=True)
+            response.raise_for_status()
+            
+            # 处理流式响应
+            client = sseclient.SSEClient(response)
+            for event in client.events():
+                if event.data == "[DONE]":
+                    break
                 
-            try:
-                data = json.loads(event.data)
-                # 提取块中的文本
-                chunk_text = ""
-                for choice in data.get("choices", []):
-                    delta = choice.get("delta", {})
-                    chunk_text += delta.get("content", "")
-                
-                # 累积完整文本
-                full_text += chunk_text
-                
-                # 如果提供了回调，执行回调
-                if callback and callable(callback):
-                    callback(data, chunk_text, full_text)
+                try:
+                    chunk = json.loads(event.data)
+                    if "delta" in chunk:
+                        print(chunk["delta"], end="", flush=True)
                     
-            except json.JSONDecodeError:
-                print(f"无法解析JSON: {event.data}")
-                
-        return full_text
+                    if not conversation_id and "conversation_id" in chunk:
+                        conversation_id = chunk["conversation_id"]
+                except:
+                    pass
+            
+            print()  # 换行
+            
+        except Exception as e:
+            print(f"出错: {e}")
 
-# 使用示例
-async def main():
-    client = WorkflowClient()
-    workflow_id = "your_workflow_id_here"  # 替换为你的Coze工作流ID
-    
-    # 非流式示例
-    print("=== 非流式工作流运行示例 ===")
-    try:
-        response = client.run_workflow(
-            workflow_id=workflow_id,
-            input_text="请帮我总结下今天的天气情况"
-        )
-        print("响应:", json.dumps(response, indent=2, ensure_ascii=False))
-        
-        # 提取输出
-        output = ""
-        for choice in response.get("choices", []):
-            message = choice.get("message", {})
-            output += message.get("content", "")
-        
-        print("\n工作流输出:", output)
-    except Exception as e:
-        print(f"非流式工作流运行失败: {e}")
-    
-    # 流式示例
-    print("\n=== 流式工作流运行示例 ===")
-    
-    def print_chunk(data, chunk_text, full_text):
-        """处理每个接收到的数据块"""
-        print(f"接收到新块: {chunk_text}")
-    
-    try:
-        full_response = client.stream_workflow(
-            workflow_id=workflow_id,
-            input_text="请帮我生成一个旅行计划",
-            callback=print_chunk
-        )
-        print("\n完整响应:", full_response)
-    except Exception as e:
-        print(f"流式工作流运行失败: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Coze工作流示例")
+    parser.add_argument("--interactive", "-i", action="store_true", help="启动交互式演示")
+    parser.add_argument("--message", "-m", help="工作流输入消息")
+    parser.add_argument("--workflow-id", "-w", help="工作流ID")
+    parser.add_argument("--stream", "-s", action="store_true", help="使用流式响应")
+    
+    args = parser.parse_args()
+    
+    if args.interactive:
+        interactive_demo()
+    elif args.message:
+        try:
+            if args.stream:
+                result = stream_workflow(args.message, args.workflow_id)
+            else:
+                result = run_workflow(args.message, args.workflow_id)
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+        except Exception as e:
+            print(f"出错: {e}")
+    else:
+        parser.print_help()

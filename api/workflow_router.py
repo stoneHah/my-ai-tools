@@ -1,97 +1,90 @@
 """
-工作流API路由
-提供工作流相关的API端点
+工作流API路由模块
+提供与工作流交互的API端点
 """
-from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import json
 
-from api.models import ChatRequest
+from api.models import WorkflowRequest, WorkflowResponse
 from ai_services.base import AIServiceRegistry
 
-router = APIRouter(prefix="/ai", tags=["workflow"])
+# 创建API路由器
+router = APIRouter(prefix="/ai/workflow", tags=["workflow"])
 
-@router.post("/workflow")
-async def run_workflow(request: ChatRequest) -> Dict[str, Any]:
+
+@router.post("/{service_name}/run", response_model=WorkflowResponse)
+async def run_workflow(service_name: str, request: WorkflowRequest):
     """
-    运行工作流（非流式）
+    运行指定服务的工作流（非流式响应）
     
     Args:
-        request: 工作流请求
+        service_name: 服务名称，如coze_workflow等
         
     Returns:
-        工作流运行结果
+        WorkflowResponse: 工作流运行结果
     """
-    # 获取服务
-    service = AIServiceRegistry.get_service(
-        service_name=request.service_name,
-        service_type=request.service_type
-    )
-    
+    # 获取服务实例
+    service = AIServiceRegistry.get_service(service_name)
     if not service:
-        raise HTTPException(
-            status_code=404,
-            detail=f"服务未找到: {request.service_name} (类型: {request.service_type})"
-        )
+        raise HTTPException(status_code=404, detail=f"找不到工作流服务: {service_name}")
     
-    # 运行工作流
+    # 验证是否为工作流服务
+    if service.service_type != "workflow":
+        raise HTTPException(status_code=400, detail=f"服务 {service_name} 不是工作流服务")
+    
+    # 调用服务
     try:
-        result = await service.chat_completion(
-            messages=request.messages,
+        response = await service.chat_completion(
+            message=request.message,
+            conversation_id=request.conversation_id,
             **request.parameters
         )
-        return result
+        return response
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"工作流运行失败: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"工作流调用出错: {str(e)}")
 
-@router.post("/workflow/stream")
-async def stream_workflow(request: ChatRequest) -> StreamingResponse:
+
+@router.post("/{service_name}/stream")
+async def stream_workflow(service_name: str, request: WorkflowRequest):
     """
-    流式运行工作流
+    流式运行指定服务的工作流
     
     Args:
-        request: 工作流请求
+        service_name: 服务名称，如coze_workflow等
         
     Returns:
-        流式工作流运行结果
+        StreamingResponse: 流式工作流运行结果
     """
-    # 获取服务
-    service = AIServiceRegistry.get_service(
-        service_name=request.service_name,
-        service_type=request.service_type
-    )
-    
+    # 获取服务实例
+    service = AIServiceRegistry.get_service(service_name)
     if not service:
-        raise HTTPException(
-            status_code=404,
-            detail=f"服务未找到: {request.service_name} (类型: {request.service_type})"
-        )
+        raise HTTPException(status_code=404, detail=f"找不到工作流服务: {service_name}")
     
-    # 流式运行工作流
-    try:
-        async def generate():
-            try:
-                async for chunk in service.stream_chat_completion(
-                    messages=request.messages,
-                    **request.parameters
-                ):
-                    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                yield "data: [DONE]\n\n"
-            except Exception as e:
-                error_json = json.dumps({"error": str(e)}, ensure_ascii=False)
-                yield f"data: {error_json}\n\n"
-                yield "data: [DONE]\n\n"
-        
-        return StreamingResponse(
-            generate(),
-            media_type="text/event-stream"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"工作流流式运行失败: {str(e)}"
-        )
+    # 验证是否为工作流服务
+    if service.service_type != "workflow":
+        raise HTTPException(status_code=400, detail=f"服务 {service_name} 不是工作流服务")
+    
+    # 生成事件流
+    async def event_generator():
+        try:
+            async for chunk in service.stream_chat_completion(
+                message=request.message,
+                conversation_id=request.conversation_id,
+                **request.parameters
+            ):
+                # 在API层将标准字典格式转换为SSE格式
+                yield f"data: {json.dumps(chunk)}\n\n"
+            
+            # 流结束标记
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            # 出错时发送错误信息
+            error_json = {"error": {"message": str(e)}}
+            yield f"data: {json.dumps(error_json)}\n\n"
+            yield "data: [DONE]\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )

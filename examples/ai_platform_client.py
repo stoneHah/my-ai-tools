@@ -1,253 +1,312 @@
 """
 AI中台服务客户端示例
-演示如何与AI中台服务交互
+演示如何使用AI中台服务的API
 """
+import os
 import json
 import asyncio
-import sseclient
+import argparse
+from typing import Dict, List, Any, Optional, AsyncGenerator
+from urllib.parse import urljoin
+
 import requests
-from typing import Dict, Any, Optional, Callable, List
+import sseclient
+
+# API基础URL
+DEFAULT_API_BASE = "http://localhost:8000"
+
 
 class AIPlatformClient:
     """AI中台服务客户端"""
     
-    def __init__(self, api_url: str = "http://localhost:8000"):
+    def __init__(self, api_base: str = DEFAULT_API_BASE):
         """
         初始化客户端
         
         Args:
-            api_url: API服务的URL
+            api_base: API基础URL，默认为http://localhost:8000
         """
-        self.api_url = api_url
+        self.api_base = api_base
     
-    def list_services(self) -> Dict[str, Any]:
+    def list_services(self) -> Dict[str, List[str]]:
         """
-        获取可用服务列表
+        列出所有可用的AI服务
         
         Returns:
-            服务列表响应
+            按类型分组的服务列表
         """
-        url = f"{self.api_url}/ai/services"
+        url = urljoin(self.api_base, "/ai/services")
         response = requests.get(url)
         response.raise_for_status()
-        return response.json()
+        return response.json()["services"]
     
     def chat(self, 
            service_name: str, 
-           messages: List[Dict[str, str]], 
-           parameters: Optional[Dict[str, Any]] = None, 
-           service_type: str = "chat") -> Dict[str, Any]:
+           message: str,
+           conversation_id: Optional[str] = None,
+           **parameters) -> Dict[str, Any]:
         """
-        发送聊天请求（非流式）
+        与指定AI服务进行对话（非流式）
         
         Args:
-            service_name: 服务名称
-            messages: 消息列表
-            parameters: 额外参数
-            service_type: 服务类型
+            service_name: 服务名称，如coze
+            message: 用户消息
+            conversation_id: 会话ID，如果提供则在现有会话中发送消息
+            **parameters: 额外参数，如bot_id等
             
         Returns:
-            聊天完成响应
+            对话响应
         """
-        url = f"{self.api_url}/ai/chat"
-        payload = {
-            "service_name": service_name,
-            "service_type": service_type,
-            "messages": messages,
-            "parameters": parameters or {},
-            "stream": False
+        url = urljoin(self.api_base, f"/ai/{service_name}/chat")
+        data = {
+            "message": message,
+            "conversation_id": conversation_id,
+            "stream": False,
+            "parameters": parameters
         }
-        response = requests.post(url, json=payload)
+        
+        response = requests.post(url, json=data)
         response.raise_for_status()
         return response.json()
     
     def stream_chat(self, 
                   service_name: str, 
-                  messages: List[Dict[str, str]], 
-                  parameters: Optional[Dict[str, Any]] = None, 
-                  service_type: str = "chat",
-                  callback: Optional[Callable] = None) -> str:
+                  message: str,
+                  conversation_id: Optional[str] = None,
+                  **parameters) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        发送流式聊天请求
+        与指定AI服务进行对话（流式）
         
         Args:
-            service_name: 服务名称
-            messages: 消息列表
-            parameters: 额外参数
-            service_type: 服务类型
-            callback: 处理每个响应块的回调函数
+            service_name: 服务名称，如coze
+            message: 用户消息
+            conversation_id: 会话ID，如果提供则在现有会话中发送消息
+            **parameters: 额外参数，如bot_id等
             
-        Returns:
-            完整响应文本
+        Yields:
+            流式对话响应的每个部分
         """
-        url = f"{self.api_url}/ai/chat/stream"
-        payload = {
-            "service_name": service_name,
-            "service_type": service_type,
-            "messages": messages,
-            "parameters": parameters or {},
-            "stream": True
+        url = urljoin(self.api_base, f"/ai/{service_name}/chat/stream")
+        data = {
+            "message": message,
+            "conversation_id": conversation_id,
+            "stream": True,
+            "parameters": parameters
         }
-        response = requests.post(url, json=payload, stream=True)
+        
+        response = requests.post(url, json=data, stream=True)
         response.raise_for_status()
         
-        # 使用SSE客户端处理事件流
         client = sseclient.SSEClient(response)
-        
-        full_text = ""
         for event in client.events():
             if event.data == "[DONE]":
                 break
-                
-            try:
-                data = json.loads(event.data)
-                # 提取块中的文本
-                chunk_text = ""
-                for choice in data.get("choices", []):
-                    delta = choice.get("delta", {})
-                    chunk_text += delta.get("content", "")
-                
-                # 累积完整文本
-                full_text += chunk_text
-                
-                # 如果提供了回调，执行回调
-                if callback and callable(callback):
-                    callback(data, chunk_text, full_text)
-                    
-            except json.JSONDecodeError:
-                print(f"无法解析JSON: {event.data}")
-                
-        return full_text
+            
+            yield json.loads(event.data)
     
-    def workflow(self,
-               service_name: str,
-               parameters: Dict[str, Any],
-               input_text: Optional[str] = None,
-               service_type: str = "workflow") -> Dict[str, Any]:
+    def run_workflow(self, 
+                   service_name: str, 
+                   message: str,
+                   conversation_id: Optional[str] = None,
+                   **parameters) -> Dict[str, Any]:
         """
-        运行工作流（非流式）
+        运行指定工作流服务（非流式）
         
         Args:
-            service_name: 服务名称
-            parameters: 工作流参数，包括workflow_id
-            input_text: 输入文本
-            service_type: 服务类型
+            service_name: 服务名称，如coze_workflow
+            message: 工作流输入
+            conversation_id: 会话ID，如果提供则在现有会话中发送消息
+            **parameters: 额外参数，如workflow_id等
             
         Returns:
             工作流运行结果
         """
-        messages = []
-        if input_text:
-            messages = [{"role": "user", "content": input_text}]
-            
-        return self.chat(
-            service_name=service_name,
-            messages=messages,
-            parameters=parameters,
-            service_type=service_type
-        )
+        url = urljoin(self.api_base, f"/ai/workflow/{service_name}/run")
+        data = {
+            "message": message,
+            "conversation_id": conversation_id,
+            "stream": False,
+            "parameters": parameters
+        }
+        
+        response = requests.post(url, json=data)
+        response.raise_for_status()
+        return response.json()
     
-    def stream_workflow(self,
-                      service_name: str,
-                      parameters: Dict[str, Any],
-                      input_text: Optional[str] = None,
-                      service_type: str = "workflow",
-                      callback: Optional[Callable] = None) -> str:
+    def stream_workflow(self, 
+                      service_name: str, 
+                      message: str,
+                      conversation_id: Optional[str] = None,
+                      **parameters) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        流式运行工作流
+        流式运行指定工作流服务
         
         Args:
-            service_name: 服务名称
-            parameters: 工作流参数，包括workflow_id
-            input_text: 输入文本
-            service_type: 服务类型
-            callback: 处理每个响应块的回调函数
+            service_name: 服务名称，如coze_workflow
+            message: 工作流输入
+            conversation_id: 会话ID，如果提供则在现有会话中发送消息
+            **parameters: 额外参数，如workflow_id等
             
-        Returns:
-            完整响应文本
+        Yields:
+            流式工作流运行结果的每个部分
         """
-        messages = []
-        if input_text:
-            messages = [{"role": "user", "content": input_text}]
+        url = urljoin(self.api_base, f"/ai/workflow/{service_name}/stream")
+        data = {
+            "message": message,
+            "conversation_id": conversation_id,
+            "stream": True,
+            "parameters": parameters
+        }
+        
+        response = requests.post(url, json=data, stream=True)
+        response.raise_for_status()
+        
+        client = sseclient.SSEClient(response)
+        for event in client.events():
+            if event.data == "[DONE]":
+                break
             
-        return self.stream_chat(
-            service_name=service_name,
-            messages=messages,
-            parameters=parameters,
-            service_type=service_type,
-            callback=callback
-        )
+            yield json.loads(event.data)
 
-# 使用示例
-async def main():
+
+async def interactive_chat_demo(service_name: str, bot_id: Optional[str] = None):
+    """
+    交互式聊天演示
+    
+    Args:
+        service_name: 服务名称
+        bot_id: 机器人ID（可选）
+    """
     client = AIPlatformClient()
+    conversation_id = None
     
-    # 获取可用服务列表
-    print("=== 可用服务列表 ===")
-    try:
-        services = client.list_services()
-        print(json.dumps(services, indent=2, ensure_ascii=False))
-    except Exception as e:
-        print(f"获取服务列表失败: {e}")
+    print(f"开始与{service_name}服务的对话（输入'exit'退出）")
     
-    # 非流式聊天示例
-    print("\n=== 非流式聊天示例 ===")
-    try:
-        response = client.chat(
-            service_name="coze",
-            messages=[
-                {"role": "user", "content": "你好，请介绍一下自己"}
-            ]
-        )
-        print("响应:", json.dumps(response, indent=2, ensure_ascii=False))
-    except Exception as e:
-        print(f"非流式聊天失败: {e}")
+    while True:
+        user_message = input("你: ")
+        if user_message.lower() == "exit":
+            break
+        
+        params = {}
+        if bot_id:
+            params["bot_id"] = bot_id
+        
+        # 使用流式接口获取回复
+        print("AI: ", end="", flush=True)
+        full_response = ""
+        
+        # 以生成器方式处理流式回复
+        try:
+            for chunk in client.stream_chat(
+                service_name=service_name,
+                message=user_message,
+                conversation_id=conversation_id,
+                **params
+            ):
+                # 提取增量内容并打印
+                if "delta" in chunk:
+                    print(chunk["delta"], end="", flush=True)
+                    full_response += chunk["delta"]
+                
+                # 更新会话ID
+                if not conversation_id and "conversation_id" in chunk:
+                    conversation_id = chunk["conversation_id"]
+            
+            print()  # 输出换行
+        except Exception as e:
+            print(f"\n对话出错: {e}")
+
+
+async def interactive_workflow_demo(service_name: str, workflow_id: Optional[str] = None):
+    """
+    交互式工作流演示
     
-    # 流式聊天示例
-    print("\n=== 流式聊天示例 ===")
+    Args:
+        service_name: 服务名称
+        workflow_id: 工作流ID（可选）
+    """
+    client = AIPlatformClient()
+    conversation_id = None
     
-    def print_chunk(data, chunk_text, full_text):
-        """处理每个接收到的数据块"""
-        print(f"接收到新块: {chunk_text}")
+    print(f"开始与{service_name}工作流服务的交互（输入'exit'退出）")
     
-    try:
-        full_response = client.stream_chat(
-            service_name="coze",
-            messages=[
-                {"role": "user", "content": "请给我讲个故事，100字左右"}
-            ],
-            callback=print_chunk
-        )
-        print("\n完整响应:", full_response)
-    except Exception as e:
-        print(f"流式聊天失败: {e}")
-    
-    # 非流式工作流示例
-    print("\n=== 非流式工作流示例 ===")
-    try:
-        workflow_id = "your_workflow_id_here"  # 替换为你的Coze工作流ID
-        response = client.workflow(
-            service_name="coze_workflow",
-            parameters={"workflow_id": workflow_id},
-            input_text="请帮我总结下今天的天气情况"
-        )
-        print("响应:", json.dumps(response, indent=2, ensure_ascii=False))
-    except Exception as e:
-        print(f"非流式工作流运行失败: {e}")
-    
-    # 流式工作流示例
-    print("\n=== 流式工作流示例 ===")
-    try:
-        workflow_id = "your_workflow_id_here"  # 替换为你的Coze工作流ID
-        full_response = client.stream_workflow(
-            service_name="coze_workflow",
-            parameters={"workflow_id": workflow_id},
-            input_text="请帮我生成一个旅行计划",
-            callback=print_chunk
-        )
-        print("\n完整响应:", full_response)
-    except Exception as e:
-        print(f"流式工作流运行失败: {e}")
+    while True:
+        user_message = input("输入: ")
+        if user_message.lower() == "exit":
+            break
+        
+        params = {}
+        if workflow_id:
+            params["workflow_id"] = workflow_id
+        
+        # 使用流式接口获取回复
+        print("输出: ", end="", flush=True)
+        full_response = ""
+        
+        # 以生成器方式处理流式回复
+        try:
+            for chunk in client.stream_workflow(
+                service_name=service_name,
+                message=user_message,
+                conversation_id=conversation_id,
+                **params
+            ):
+                # 提取增量内容并打印
+                if "delta" in chunk:
+                    print(chunk["delta"], end="", flush=True)
+                    full_response += chunk["delta"]
+                
+                # 更新会话ID
+                if not conversation_id and "conversation_id" in chunk:
+                    conversation_id = chunk["conversation_id"]
+            
+            print()  # 输出换行
+        except Exception as e:
+            print(f"\n工作流运行出错: {e}")
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="AI中台服务客户端示例")
+    
+    # 添加子命令
+    subparsers = parser.add_subparsers(dest="command", help="命令")
+    
+    # 列出服务命令
+    list_parser = subparsers.add_parser("list", help="列出可用的服务")
+    
+    # 聊天命令
+    chat_parser = subparsers.add_parser("chat", help="与AI服务进行对话")
+    chat_parser.add_argument("--service", "-s", default="coze", help="服务名称，默认为coze")
+    chat_parser.add_argument("--bot-id", "-b", help="机器人ID（可选）")
+    
+    # 工作流命令
+    workflow_parser = subparsers.add_parser("workflow", help="运行工作流")
+    workflow_parser.add_argument("--service", "-s", default="coze_workflow", help="工作流服务名称，默认为coze_workflow")
+    workflow_parser.add_argument("--workflow-id", "-w", help="工作流ID（可选）")
+    
+    args = parser.parse_args()
+    
+    # 根据命令执行相应操作
+    if args.command == "list":
+        client = AIPlatformClient()
+        services = client.list_services()
+        print("可用的AI服务:")
+        for service_type, service_names in services.items():
+            print(f"- {service_type}:")
+            for name in service_names:
+                print(f"  - {name}")
+    
+    elif args.command == "chat":
+        asyncio.run(interactive_chat_demo(
+            service_name=args.service,
+            bot_id=args.bot_id
+        ))
+    
+    elif args.command == "workflow":
+        asyncio.run(interactive_workflow_demo(
+            service_name=args.service,
+            workflow_id=args.workflow_id
+        ))
+    
+    else:
+        parser.print_help()
