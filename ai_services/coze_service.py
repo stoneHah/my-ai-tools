@@ -131,15 +131,15 @@ class CozeService(AIServiceBase):
                 additional_messages=[Message.build_user_question_text(message)],
                 conversation_id=conversation_id
             ):
-                # 只处理消息增量事件
+                print(event)
                 if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
-                    print(event)
                     message = event.message
                 
                     # 构造返回的响应格式
                     yield {
                         "content": message.content,
                         "role": message.role,
+                        "type": message.type
                     }
 
                 if event.event == ChatEventType.CONVERSATION_CHAT_COMPLETED:
