@@ -8,7 +8,7 @@ import json
 import logging
 from typing import Dict, List, Any, Optional, AsyncGenerator
 
-from cozepy import Coze, TokenAuth,ChatEventType, Message
+from cozepy import Coze, TokenAuth,ChatEventType, Message, MessageType
 
 from ai_services.base import AIServiceBase, AIServiceRegistry
 
@@ -131,7 +131,16 @@ class CozeService(AIServiceBase):
                 additional_messages=[Message.build_user_question_text(message)],
                 conversation_id=conversation_id
             ):
+                print("------------event------------")
                 print(event)
+                if event.event == ChatEventType.CONVERSATION_MESSAGE_COMPLETED:
+                    message = event.message
+                    if message.type == MessageType.FUNCTION_CALL or message.type == MessageType.TOOL_OUTPUT or message.type == MessageType.TOOL_RESPONSE:
+                        yield {
+                            "content": message.content,
+                            "role": message.role,
+                            "type": message.type
+                        }
                 if event.event == ChatEventType.CONVERSATION_MESSAGE_DELTA:
                     message = event.message
                 
