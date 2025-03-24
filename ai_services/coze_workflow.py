@@ -5,14 +5,127 @@ Coze工作流服务
 import os
 import datetime
 import json
-from typing import Dict, List, Any, Optional, AsyncGenerator
+from typing import Dict, List, Any, Optional, AsyncGenerator, Union
+from abc import abstractmethod
 
 from cozepy import AsyncCoze, TokenAuth,WorkflowEventType  
 
 from ai_services.base import AIServiceBase, AIServiceRegistry
 
 
-class CozeWorkflowService(AIServiceBase):
+class WorkflowServiceBase(AIServiceBase):
+    """工作流服务抽象基类"""
+    
+    @property
+    def service_type(self) -> str:
+        """服务类型"""
+        return "workflow"
+    
+    @abstractmethod
+    async def run_workflow(self, 
+                         workflow_id: str,
+                         input_params: Dict[str, Any],
+                         **kwargs) -> Dict[str, Any]:
+        """
+        运行工作流并获取结果
+        
+        Args:
+            workflow_id: 工作流ID
+            input_params: 工作流输入参数，字典类型
+            **kwargs: 其他参数
+            
+        Returns:
+            工作流运行结果
+        """
+        pass
+    
+    @abstractmethod
+    async def stream_workflow(self, 
+                            workflow_id: str,
+                            input_params: Dict[str, Any],
+                            **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        流式运行工作流并获取结果
+        
+        Args:
+            workflow_id: 工作流ID
+            input_params: 工作流输入参数，字典类型
+            **kwargs: 其他参数
+            
+        Yields:
+            流式工作流运行结果的每个部分
+        """
+        pass
+    
+    async def chat_completion(self, 
+                             message: str,
+                             conversation_id: Optional[str] = None,
+                             **kwargs) -> Dict[str, Any]:
+        """
+        实现AIServiceBase的抽象方法，通过工作流提供聊天功能
+        
+        Args:
+            message: 用户消息
+            conversation_id: 会话ID
+            **kwargs: 其他参数，可以包含workflow_id等
+            
+        Returns:
+            工作流运行结果
+        """
+        workflow_id = kwargs.get("workflow_id", getattr(self, "default_workflow_id", None))
+        if not workflow_id:
+            raise ValueError("未提供workflow_id，请在参数中指定或在初始化服务时设置默认值")
+        
+        # 准备输入参数
+        input_params = {"input": message}
+        if kwargs.get("input_params"):
+            # 如果提供了额外的输入参数，合并它们
+            input_params.update(kwargs["input_params"])
+        
+        # 调用工作流
+        result = await self.run_workflow(
+            workflow_id=workflow_id,
+            input_params=input_params,
+            **kwargs
+        )
+        
+        return result
+    
+    async def stream_chat_completion(self, 
+                                    message: str,
+                                    conversation_id: Optional[str] = None,
+                                    **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        实现AIServiceBase的抽象方法，通过工作流提供流式聊天功能
+        
+        Args:
+            message: 用户消息
+            conversation_id: 会话ID
+            **kwargs: 其他参数，可以包含workflow_id等
+            
+        Yields:
+            流式工作流运行结果的每个部分
+        """
+        workflow_id = kwargs.get("workflow_id", getattr(self, "default_workflow_id", None))
+        if not workflow_id:
+            raise ValueError("未提供workflow_id，请在参数中指定或在初始化服务时设置默认值")
+        
+        # 准备输入参数
+        input_params = {"input": message}
+        if kwargs.get("input_params"):
+            # 如果提供了额外的输入参数，合并它们
+            input_params.update(kwargs["input_params"])
+        
+        # 调用流式工作流
+        async for chunk in self.stream_workflow(
+            workflow_id=workflow_id,
+            input_params=input_params,
+            **kwargs
+        ):
+            yield chunk
+
+
+class CozeWorkflowService(WorkflowServiceBase):
     """Coze工作流服务"""
     
     def __init__(self, api_token: str, api_base: Optional[str] = None, workflow_id: Optional[str] = None):
@@ -39,11 +152,6 @@ class CozeWorkflowService(AIServiceBase):
         """服务名称"""
         return "coze"
     
-    @property
-    def service_type(self) -> str:
-        """服务类型"""
-        return "workflow"
-    
     async def create_conversation(self, **kwargs) -> str:
         """
         创建新的会话
@@ -58,78 +166,57 @@ class CozeWorkflowService(AIServiceBase):
         # 返回一个临时ID，实际会话将在首次调用工作流时创建
         return f"wf_temp_{datetime.datetime.now().timestamp()}"
     
-    async def chat_completion(self, 
-                             message: str,
-                             conversation_id: Optional[str] = None,
-                             **kwargs) -> Dict[str, Any]:
+    async def run_workflow(self, 
+                         workflow_id: str,
+                         input_params: Dict[str, Any],
+                         **kwargs) -> Dict[str, Any]:
         """
         运行工作流并获取结果
         
         Args:
-            message: 工作流输入
-            conversation_id: 会话ID
-            **kwargs: 其他参数，可以包含workflow_id等
+            workflow_id: 工作流ID
+            input_params: 工作流输入参数，字典类型
+            **kwargs: 其他参数
             
         Returns:
             工作流运行结果
         """
-        workflow_id = kwargs.get("workflow_id", self.default_workflow_id)
-        if not workflow_id:
-            raise ValueError("未提供workflow_id，请在参数中指定或在初始化服务时设置默认值")
-        
         # 调用Coze工作流API
-        response = await self.client.workflows.run(
+        response = await self.client.workflows.runs.create(
             workflow_id=workflow_id,
-            input=message,
-            conversation_id=conversation_id
+            parameters=input_params
         )
         
-        # 构建响应
-        result = {
-            "id": response.run_id,
-            "message": response.output,
-            "role": "assistant"
-        }
-        
-        # 如果有会话ID，则包含在响应中
-        if conversation_id:
-            result["conversation_id"] = conversation_id
-        elif hasattr(response, 'conversation_id') and response.conversation_id:
-            # 如果没有提供会话ID但响应中包含会话ID
-            result["conversation_id"] = response.conversation_id
-        
-        return result
+        # 返回工作流运行结果
+        return response.data
     
-    async def stream_chat_completion(self, 
-                                    message: str,
-                                    conversation_id: Optional[str] = None,
-                                    **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+    async def stream_workflow(self, 
+                            workflow_id: str,
+                            input_params: Dict[str, Any],
+                            **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
         """
         流式运行工作流并获取结果
         
         Args:
-            message: 工作流输入
-            conversation_id: 会话ID
-            **kwargs: 其他参数，可以包含workflow_id等
+            workflow_id: 工作流ID
+            input_params: 工作流输入参数，字典类型
+            **kwargs: 其他参数
             
         Yields:
-            流式工作流运行结果的每个部分（标准字典格式，不是SSE格式）
+            流式工作流运行结果的每个部分
         """
-        workflow_id = kwargs.get("workflow_id", self.default_workflow_id)
-        if not workflow_id:
-            raise ValueError("未提供workflow_id，请在参数中指定或在初始化服务时设置默认值")
+        # 处理可能存在的会话ID
+        conversation_id = kwargs.get("conversation_id")
         
         # 调用Coze工作流API进行流式响应
-        stream = await self.client.workflows.run(
+        stream = await self.client.workflows.runs.create(
             workflow_id=workflow_id,
-            input=message,
-            conversation_id=conversation_id,
+            parameters=input_params,
             stream=True
         )
         
         response_id = None
         full_content = ""
-        conv_id = conversation_id
         
         async for event in stream:
             # 提取运行ID
@@ -137,7 +224,8 @@ class CozeWorkflowService(AIServiceBase):
                 response_id = event.run_id
                 
             # 提取会话ID（如果存在）
-            if hasattr(event, 'conversation_id') and event.conversation_id and not conv_id:
+            conv_id = None
+            if hasattr(event, 'conversation_id') and event.conversation_id:
                 conv_id = event.conversation_id
                 
             # 处理增量输出
@@ -153,6 +241,8 @@ class CozeWorkflowService(AIServiceBase):
                 # 如果有会话ID，则包含在响应中
                 if conv_id:
                     result["conversation_id"] = conv_id
+                elif conversation_id:
+                    result["conversation_id"] = conversation_id
                 
                 yield result
 
