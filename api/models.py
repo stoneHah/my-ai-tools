@@ -32,8 +32,6 @@ class ChatStreamResponse(BaseModel):
     role: str = Field("assistant", description="回复角色，通常为assistant")
 
 
-
-
 class ConversationResponse(BaseModel):
     """会话响应模型"""
     conversation_id: str = Field(..., description="会话ID")
@@ -61,6 +59,23 @@ class ServiceInfoResponse(BaseModel):
     name: str = Field(..., description="服务名称")
     type: str = Field(..., description="服务类型")
     description: Optional[str] = Field(None, description="服务描述")
+
+
+class VideoUrlRequest(BaseModel):
+    """视频下载URL请求模型"""
+    text_info: Optional[str] = Field(None, description="附加文本信息")
+
+
+class VideoUrlResponse(BaseModel):
+    """视频下载URL响应模型"""
+    download_url: str = Field(..., description="视频下载URL")
+    cover_url: Optional[str] = Field(None, description="视频封面URL")
+    title: Optional[str] = Field(None, description="视频标题")
+    duration: Optional[int] = Field(None, description="视频时长（秒）")
+    size: Optional[int] = Field(None, description="视频大小（字节）")
+    format: Optional[str] = Field(None, description="视频格式")
+    quality: Optional[str] = Field(None, description="视频质量")
+    extra_info: Dict[str, Any] = Field(default_factory=dict, description="额外信息")
 
 
 class ServicesListResponse(BaseModel):

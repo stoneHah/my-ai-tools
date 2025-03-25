@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.ai_router import router as ai_router
-from api.workflow_router import router as workflow_router
+from api.media_router import router as media_router
 from ai_services.coze_service import register_coze_service
 from ai_services.coze_workflow import register_coze_workflow_service
 
@@ -53,7 +53,7 @@ register_services()
 
 # 添加路由
 app.include_router(ai_router)
-app.include_router(workflow_router)
+app.include_router(media_router)
 
 # 健康检查端点
 @app.get("/health", tags=["health"])

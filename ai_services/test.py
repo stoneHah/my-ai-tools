@@ -49,7 +49,7 @@ async def test_run_workflow():
         )
         
         # 打印结果
-        print("\n工作流运行结果:")
+        print(f"\n工作流运行结果: {type(result).__name__}")
         print(json.dumps(result, ensure_ascii=False, indent=2))
         
     except Exception as e:

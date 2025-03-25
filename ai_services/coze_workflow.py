@@ -188,7 +188,7 @@ class CozeWorkflowService(WorkflowServiceBase):
         )
         
         # 返回工作流运行结果
-        return response.data
+        return json.loads(response.data)
     
     async def stream_workflow(self, 
                             workflow_id: str,
