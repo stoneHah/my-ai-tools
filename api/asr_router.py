@@ -33,7 +33,7 @@ async def recognize_speech(request: ASRRequest):
     """
     try:
         # 获取服务名称和参数
-        service_name = request.service_name
+        service_name = request.service_name or os.getenv("DEFAULT_ASR_MODEL")
         audio_url = request.audio_url
         params = request.parameters or {}
         
@@ -43,7 +43,7 @@ async def recognize_speech(request: ASRRequest):
             raise HTTPException(status_code=404, detail=f"未找到语音识别服务: {service_name}")
         
         # 调用服务进行识别
-        response = await service.recognize(audio_url=audio_url, **params)
+        response = await service.recognize_url(audio_url=audio_url, **params)
         
         # 构建响应
         asr_response = ASRResponse(
@@ -90,7 +90,7 @@ async def stream_recognize_speech(request: ASRRequest):
     # 生成事件流
     async def event_generator():
         try:
-            async for chunk in service.stream_recognize(
+            async for chunk in service.stream_recognize_url(
                 audio_url=request.audio_url,
                 **request.parameters
             ):
@@ -112,7 +112,7 @@ async def stream_recognize_speech(request: ASRRequest):
 @router.post("/file", response_model=APIResponse[ASRResponse])
 async def recognize_file(
     file: UploadFile = File(...),
-    service_name: str = Form(...),
+    sample_rate: int = Form(16000),
     parameters: Optional[str] = Form("{}")
 ):
     """
@@ -136,6 +136,9 @@ async def recognize_file(
             params = json.loads(parameters) if parameters else {}
         except json.JSONDecodeError:
             params = {}
+
+        # 默认服务名称
+        service_name = os.getenv("DEFAULT_ASR_SERVICE")
         
         # 获取语音识别服务
         service = AIServiceRegistry.get_service(service_name, "asr")
@@ -146,9 +149,11 @@ async def recognize_file(
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
+
+        params["sample_rate"] = sample_rate
         
         # 调用服务进行识别
-        response = await service.recognize(
+        response = await service.recognize_file(
             audio_file_path=file_path,
             **params
         )
@@ -223,7 +228,7 @@ async def stream_recognize_file(
         # 生成事件流
         async def event_generator():
             try:
-                async for chunk in service.stream_recognize(
+                async for chunk in service.stream_recognize_file(
                     audio_file_path=file_path,
                     **params
                 ):

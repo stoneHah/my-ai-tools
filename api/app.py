@@ -13,11 +13,11 @@ from api.media_router import router as media_router
 from api.asr_router import router as asr_router
 from ai_services.coze_service import register_coze_service
 from ai_services.coze_workflow import register_coze_workflow_service
-from ai_services.dashscope_service import register_dashscope_asr_service
+from ai_services.asr.registry import register_all_asr_services
 
 # 配置日志
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler()  # 输出到控制台
@@ -57,12 +57,13 @@ def register_services():
     else:
         print("未注册Coze工作流服务，请检查环境变量COZE_API_TOKEN是否已设置")
     
-    # 注册阿里云百炼语音识别服务
-    dashscope_asr_service = register_dashscope_asr_service()
-    if dashscope_asr_service:
-        print(f"已注册服务: {dashscope_asr_service.service_name} (类型: {dashscope_asr_service.service_type})")
+    # 注册所有ASR服务
+    asr_services = register_all_asr_services()
+    if asr_services:
+        for name, service in asr_services.items():
+            print(f"已注册ASR服务: {service.service_name} (类型: {service.service_type})")
     else:
-        print("未注册阿里云百炼语音识别服务，请检查环境变量DASHSCOPE_API_KEY是否已设置")
+        print("未注册ASR服务，请检查环境变量DASHSCOPE_API_KEY是否已设置")
     
     # 在这里注册其他AI服务
     # ...

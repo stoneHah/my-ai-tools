@@ -57,7 +57,7 @@ class WorkflowServiceBase(AIServiceBase):
         """
         pass
     
-    async def chat_completion(self, 
+    async def chat(self, 
                              message: str,
                              conversation_id: Optional[str] = None,
                              **kwargs) -> Dict[str, Any]:
@@ -91,7 +91,7 @@ class WorkflowServiceBase(AIServiceBase):
         
         return result
     
-    async def stream_chat_completion(self, 
+    async def stream_chat(self, 
                                     message: str,
                                     conversation_id: Optional[str] = None,
                                     **kwargs) -> AsyncGenerator[Dict[str, Any], None]:

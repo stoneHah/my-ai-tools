@@ -1,0 +1,84 @@
+[
+    {
+        "sentence_id": 1,
+        "begin_time": 280,
+        "end_time": 3820,
+        "text": "Hello word, \u8fd9\u91cc\u662f\u963f\u91cc\u5df4\u5df4\u8bed\u97f3\u5b9e\u9a8c\u5ba4\u3002",
+        "channel_id": 0,
+        "speaker_id": null,
+        "sentence_end": true,
+        "words": [
+            {
+                "begin_time": 280,
+                "end_time": 634,
+                "text": "Hello ",
+                "punctuation": "",
+                "fixed": false,
+                "speaker_id": null
+            },
+            {
+                "begin_time": 634,
+                "end_time": 988,
+                "text": "word",
+                "punctuation": ", ",
+                "fixed": false,
+                "speaker_id": null
+            },
+            {
+                "begin_time": 988,
+                "end_time": 1460,
+                "text": "\u8fd9\u91cc",
+                "punctuation": "",
+                "fixed": false,
+                "speaker_id": null
+            },
+            {
+                "begin_time": 1460,
+                "end_time": 1932,
+                "text": "\u662f\u963f",
+                "punctuation": "",
+                "fixed": false,
+                "speaker_id": null
+            },
+            {
+                "begin_time": 1932,
+                "end_time": 2404,
+                "text": "\u91cc\u5df4",
+                "punctuation": "",
+                "fixed": false,
+                "speaker_id": null
+            },
+            {
+                "begin_time": 2404,
+                "end_time": 2876,
+                "text": "\u5df4\u8bed",
+                "punctuation": "",
+                "fixed": false,
+                "speaker_id": null
+            },
+            {
+                "begin_time": 2876,
+                "end_time": 3348,
+                "text": "\u97f3\u5b9e",
+                "punctuation": "",
+                "fixed": false,
+                "speaker_id": null
+            },
+            {
+                "begin_time": 3348,
+                "end_time": 3820,
+                "text": "\u9a8c\u5ba4",
+                "punctuation": "\u3002",
+                "fixed": false,
+                "speaker_id": null
+            }
+        ],
+        "stash": {
+            "sentence_id": 2,
+            "text": "",
+            "begin_time": 3820,
+            "current_time": 3820,
+            "words": []
+        }
+    }
+]

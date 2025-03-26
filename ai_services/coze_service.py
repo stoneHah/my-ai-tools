@@ -47,6 +47,57 @@ class CozeService(AIServiceBase):
         """服务类型"""
         return "chat"
     
+    async def chat(self, messages: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
+        """
+        聊天接口
+        
+        Args:
+            messages: 消息列表，每个消息包含role和content字段
+            **kwargs: 其他参数
+            
+        Returns:
+            聊天响应
+        """
+        # 提取最后一条用户消息
+        user_messages = [msg for msg in messages if msg.get("role") == "user"]
+        if not user_messages:
+            raise ValueError("消息列表中没有用户消息")
+        
+        last_user_message = user_messages[-1]["content"]
+        
+        # 调用现有的chat_completion方法
+        return await self.chat_completion(
+            message=last_user_message,
+            conversation_id=kwargs.get("conversation_id"),
+            **kwargs
+        )
+    
+    async def stream_chat(self, messages: List[Dict[str, Any]], **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        流式聊天接口
+        
+        Args:
+            messages: 消息列表，每个消息包含role和content字段
+            **kwargs: 其他参数
+            
+        Yields:
+            流式聊天响应
+        """
+        # 提取最后一条用户消息
+        user_messages = [msg for msg in messages if msg.get("role") == "user"]
+        if not user_messages:
+            raise ValueError("消息列表中没有用户消息")
+        
+        last_user_message = user_messages[-1]["content"]
+        
+        # 调用现有的stream_chat_completion方法
+        async for chunk in self.stream_chat_completion(
+            message=last_user_message,
+            conversation_id=kwargs.get("conversation_id"),
+            **kwargs
+        ):
+            yield chunk
+    
     async def create_conversation(self, **kwargs) -> str:
         """
         创建新的会话

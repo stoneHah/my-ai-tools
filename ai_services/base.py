@@ -1,10 +1,12 @@
 """
-AI服务基础抽象接口
-定义所有AI服务提供商必须实现的接口
+AI服务基础抽象类定义
 """
+import os
+import logging
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, AsyncGenerator, Union
+from typing import Dict, List, Any, Optional, Union, AsyncGenerator
 
+logger = logging.getLogger(__name__)
 
 class AIServiceBase(ABC):
     """AI服务基础抽象类"""
@@ -18,51 +20,44 @@ class AIServiceBase(ABC):
     @property
     @abstractmethod
     def service_type(self) -> str:
-        """服务类型，如chat、image、audio等"""
+        """服务类型，如chat、image等"""
         pass
     
     @abstractmethod
-    async def chat_completion(self, 
-                             message: str, 
-                             conversation_id: Optional[str] = None,
-                             **kwargs) -> Dict[str, Any]:
+    async def chat(self, messages: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
         """
-        聊天完成接口
+        聊天接口
         
         Args:
-            message: 用户消息
-            conversation_id: 会话ID
+            messages: 消息列表，每个消息包含role和content字段
             **kwargs: 其他参数
             
         Returns:
-            完成结果
+            聊天响应
         """
         pass
     
     @abstractmethod
-    async def stream_chat_completion(self, 
-                                    message: str,
-                                    conversation_id: Optional[str] = None,
-                                    **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+    async def stream_chat(self, messages: List[Dict[str, Any]], **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        流式聊天完成接口
+        流式聊天接口
         
         Args:
-            message: 用户消息
-            conversation_id: 会话ID
+            messages: 消息列表，每个消息包含role和content字段
             **kwargs: 其他参数
             
         Yields:
-            流式完成结果
+            流式聊天响应
         """
         pass
     
+    @abstractmethod
     async def create_conversation(self, **kwargs) -> str:
         """
-        创建新的会话
+        创建会话
         
         Args:
-            **kwargs: 其他参数
+            **kwargs: 会话参数
             
         Returns:
             会话ID字符串
@@ -70,89 +65,29 @@ class AIServiceBase(ABC):
         raise NotImplementedError("此服务不支持创建会话")
 
 
-class ASRServiceBase(ABC):
-    """语音识别服务基础抽象类"""
-    
-    @property
-    @abstractmethod
-    def service_name(self) -> str:
-        """服务名称"""
-        pass
-    
-    @property
-    @abstractmethod
-    def service_type(self) -> str:
-        """服务类型，应为asr"""
-        pass
-    
-    @abstractmethod
-    async def recognize(self, 
-                       audio_url: Optional[str] = None,
-                       audio_file_path: Optional[str] = None,
-                       **kwargs) -> Dict[str, Any]:
-        """
-        语音识别接口
-        
-        Args:
-            audio_url: 音频文件URL，可选
-            audio_file_path: 音频文件本地路径，可选（至少需要提供一个）
-            **kwargs: 其他参数
-            
-        Returns:
-            识别结果，包含以下字段：
-            - id: 响应ID
-            - text: 识别出的文本
-            - status: 状态（success或error）
-        """
-        pass
-    
-    @abstractmethod
-    async def stream_recognize(self, 
-                              audio_url: Optional[str] = None,
-                              audio_file_path: Optional[str] = None,
-                              **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
-        """
-        流式语音识别接口
-        
-        Args:
-            audio_url: 音频文件URL，可选
-            audio_file_path: 音频文件本地路径，可选（至少需要提供一个）
-            **kwargs: 其他参数
-            
-        Yields:
-            流式识别结果，每个块包含以下字段：
-            - id: 响应ID
-            - text: 当前累积的文本
-            - delta: 本次增量内容
-            - status: 状态（success或error）
-            - is_final: 是否为最终结果
-        """
-        pass
-
-
 class AIServiceRegistry:
     """AI服务注册表，用于管理所有AI服务提供商"""
     
-    _services: Dict[str, Dict[str, Union[AIServiceBase, ASRServiceBase]]] = {}
+    _services: Dict[str, Dict[str, Any]] = {}
     
     @classmethod
-    def register(cls, service: Union[AIServiceBase, ASRServiceBase]) -> None:
+    def register(cls, service: Any) -> None:
         """
         注册AI服务
         
         Args:
             service: AI服务实例
         """
-        service_name = service.service_name
-        if service_name not in cls._services:
-            cls._services[service_name] = {}
+        service_type = service.service_type
+        if service_type not in cls._services:
+            cls._services[service_type] = {}
         
-        cls._services[service_name][service.service_type] = service
+        cls._services[service_type][service.service_name] = service
     
     @classmethod
-    def get_service(cls, service_name: str, service_type: str) -> Optional[Union[AIServiceBase, ASRServiceBase]]:
+    def get_service(cls, service_name: str, service_type: str) -> Optional[Any]:
         """
-        获取指定类型和名称的AI服务
+        获取AI服务
         
         Args:
             service_name: 服务名称
@@ -161,28 +96,30 @@ class AIServiceRegistry:
         Returns:
             AI服务实例，如果不存在则返回None
         """
-        if service_name not in cls._services:
+        if service_type not in cls._services:
             return None
         
-        return cls._services[service_name].get(service_type)
+        return cls._services[service_type].get(service_name)
     
     @classmethod
     def list_services(cls, service_type: Optional[str] = None) -> Dict[str, List[str]]:
         """
-        列出所有注册的AI服务
+        列出所有AI服务
         
         Args:
-            service_type: 可选的服务类型过滤
+            service_type: 服务类型，如果不指定则列出所有类型
             
         Returns:
-            按类型分组的服务名称列表
+            服务列表，按类型分组
         """
         result = {}
         
         if service_type:
+            # 只列出指定类型的服务
             if service_type in cls._services:
                 result[service_type] = list(cls._services[service_type].keys())
         else:
+            # 列出所有类型的服务
             for type_name, services in cls._services.items():
                 result[type_name] = list(services.keys())
         
