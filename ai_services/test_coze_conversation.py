@@ -11,7 +11,7 @@ coze_api_base = os.getenv("COZE_API_BASE")
 print(coze_api_token)
 print(coze_api_base)
 
-coze = Coze(auth=TokenAuth(token="pat_YHtqeSA2IjDvQCVBJKB7kZmqj1rhQUQ2rUd4l04iC728VwQ5CL8VB0y9OBs7Rlq4"), base_url=coze_api_base)
+coze = Coze(auth=TokenAuth(token=coze_api_token), base_url=coze_api_base)
 
 conversation = coze.conversations.create()
 

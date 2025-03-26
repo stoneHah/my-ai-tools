@@ -129,8 +129,9 @@ class DashScopeParaformerASRService(ASRServiceBase):
             }
         
         sample_rate = kwargs.get("sample_rate", 16000)
+        format = kwargs.get("format", audio_file_format)
         recognition = Recognition(model='paraformer-realtime-v2',
-                        format=audio_file_format,
+                        format=format,
                         sample_rate=sample_rate,
                         # “language_hints”只支持paraformer-v2和paraformer-realtime-v2模型
                         language_hints=['zh', 'en'],

@@ -113,6 +113,7 @@ async def stream_recognize_speech(request: ASRRequest):
 async def recognize_file(
     file: UploadFile = File(...),
     sample_rate: int = Form(16000),
+    format: str = Form("wav"),
     parameters: Optional[str] = Form("{}")
 ):
     """
@@ -151,6 +152,7 @@ async def recognize_file(
             f.write(content)
 
         params["sample_rate"] = sample_rate
+        params["format"] = format
         
         # 调用服务进行识别
         response = await service.recognize_file(
