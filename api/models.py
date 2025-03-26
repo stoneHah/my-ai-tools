@@ -54,6 +54,29 @@ class WorkflowResponse(BaseModel):
     role: str = Field("assistant", description="角色，通常为assistant")
 
 
+class ASRRequest(BaseModel):
+    """语音识别请求模型"""
+    service_name: Optional[str] = Field("dashscope", description="服务名称，如dashscope等")
+    audio_url: Optional[str] = Field(None, description="音频文件URL")
+    parameters: Dict[str, Any] = Field(default_factory=dict, description="额外参数")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "service_name": "dashscope",
+                "audio_url": "https://example.com/audio.mp3",
+                "parameters": {}
+            }
+        }
+
+
+class ASRResponse(BaseModel):
+    """语音识别响应模型"""
+    id: str = Field(..., description="响应ID")
+    text: str = Field(..., description="识别出的文本内容")
+    status: str = Field("success", description="识别状态")
+
+
 class ServiceInfoResponse(BaseModel):
     """服务信息响应模型"""
     name: str = Field(..., description="服务名称")

@@ -1,3 +1,4 @@
 cozepy
 python-dotenv
 fastapi[standard]
+dashscope

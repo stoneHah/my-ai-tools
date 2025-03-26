@@ -70,13 +70,73 @@ class AIServiceBase(ABC):
         raise NotImplementedError("此服务不支持创建会话")
 
 
+class ASRServiceBase(ABC):
+    """语音识别服务基础抽象类"""
+    
+    @property
+    @abstractmethod
+    def service_name(self) -> str:
+        """服务名称"""
+        pass
+    
+    @property
+    @abstractmethod
+    def service_type(self) -> str:
+        """服务类型，应为asr"""
+        pass
+    
+    @abstractmethod
+    async def recognize(self, 
+                       audio_url: Optional[str] = None,
+                       audio_file_path: Optional[str] = None,
+                       **kwargs) -> Dict[str, Any]:
+        """
+        语音识别接口
+        
+        Args:
+            audio_url: 音频文件URL，可选
+            audio_file_path: 音频文件本地路径，可选（至少需要提供一个）
+            **kwargs: 其他参数
+            
+        Returns:
+            识别结果，包含以下字段：
+            - id: 响应ID
+            - text: 识别出的文本
+            - status: 状态（success或error）
+        """
+        pass
+    
+    @abstractmethod
+    async def stream_recognize(self, 
+                              audio_url: Optional[str] = None,
+                              audio_file_path: Optional[str] = None,
+                              **kwargs) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        流式语音识别接口
+        
+        Args:
+            audio_url: 音频文件URL，可选
+            audio_file_path: 音频文件本地路径，可选（至少需要提供一个）
+            **kwargs: 其他参数
+            
+        Yields:
+            流式识别结果，每个块包含以下字段：
+            - id: 响应ID
+            - text: 当前累积的文本
+            - delta: 本次增量内容
+            - status: 状态（success或error）
+            - is_final: 是否为最终结果
+        """
+        pass
+
+
 class AIServiceRegistry:
     """AI服务注册表，用于管理所有AI服务提供商"""
     
-    _services: Dict[str, Dict[str, AIServiceBase]] = {}
+    _services: Dict[str, Dict[str, Union[AIServiceBase, ASRServiceBase]]] = {}
     
     @classmethod
-    def register(cls, service: AIServiceBase) -> None:
+    def register(cls, service: Union[AIServiceBase, ASRServiceBase]) -> None:
         """
         注册AI服务
         
@@ -90,7 +150,7 @@ class AIServiceRegistry:
         cls._services[service_name][service.service_type] = service
     
     @classmethod
-    def get_service(cls, service_name: str, service_type: str) -> Optional[AIServiceBase]:
+    def get_service(cls, service_name: str, service_type: str) -> Optional[Union[AIServiceBase, ASRServiceBase]]:
         """
         获取指定类型和名称的AI服务
         
