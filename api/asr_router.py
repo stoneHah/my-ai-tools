@@ -111,17 +111,18 @@ async def stream_recognize_speech(request: ASRRequest):
 
 @router.post("/file", response_model=APIResponse[ASRResponse])
 async def recognize_file(
-    file: UploadFile = File(...),
-    sample_rate: int = Form(16000),
-    format: str = Form("wav"),
-    parameters: Optional[str] = Form("{}")
+    file: UploadFile = File(..., description="要识别的音频文件"),
+    sample_rate: int = Form(16000, description="音频采样率，默认为16000Hz"),
+    format: str = Form("wav", description="音频格式，如wav、mp3、aac等"),
+    parameters: Optional[str] = Form("{}", description="其他参数，JSON格式字符串")
 ):
     """
     语音识别接口 - 通过文件上传
     
     Args:
         file: 上传的音频文件
-        service_name: 服务名称
+        sample_rate: 音频采样率，默认为16000Hz
+        format: 音频格式，如wav、mp3、aac等
         parameters: 额外参数，JSON字符串
         
     Returns:
