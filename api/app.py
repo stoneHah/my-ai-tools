@@ -15,6 +15,7 @@ from api.tts.router import router as tts_router
 from ai_services.coze_service import register_coze_service
 from ai_services.coze_workflow import register_coze_workflow_service
 from ai_services.asr.registry import register_all_asr_services
+from ai_services.tts.registry import register_all_tts_services
 
 # 配置日志
 logging.basicConfig(
@@ -65,6 +66,14 @@ def register_services():
             print(f"已注册ASR服务: {service.service_name} (类型: {service.service_type})")
     else:
         print("未注册ASR服务，请检查环境变量DASHSCOPE_API_KEY是否已设置")
+    
+    # 注册所有TTS服务
+    tts_services = register_all_tts_services()
+    if tts_services:
+        for name, service in tts_services.items():
+            print(f"已注册TTS服务: {service.service_name} (类型: {service.service_type})")
+    else:
+        print("未注册TTS服务，请检查环境变量VOLCENGINE_TTS_APPID、VOLCENGINE_TTS_TOKEN和VOLCENGINE_TTS_CLUSTER是否已设置")
     
     # 在这里注册其他AI服务
     # ...

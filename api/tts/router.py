@@ -3,16 +3,26 @@ TTS服务路由模块
 提供TTS相关的API端点
 """
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+import uuid
+import os
+import logging
 
 from db.config import get_db
+from ai_services.tts.base import TTSServiceBase
 from ai_services.tts.models import TTSVoice, TTSPlatform, TTSVoiceCategory, TTSLanguage
+from ai_services.tts.registry import get_tts_service, list_tts_services
 from .models import (
-    VoiceResponse, VoicesListResponse, VoicePlatformResponse,
+    VoiceResponse, VoicePlatformResponse,
     VoiceCategoryResponse, VoiceLanguageResponse,
-    SimpleVoiceResponse, SimpleVoicesListResponse
+    SimpleVoicesListResponse,
+    TTSSynthesizeRequest, TTSSynthesizeResponse
 )
+
+# 配置日志记录器
+logger = logging.getLogger(__name__)
 
 # 创建API路由器
 router = APIRouter(prefix="/tts", tags=["tts"])
@@ -153,3 +163,144 @@ async def list_languages(db: Session = Depends(get_db)):
     """
     languages = db.query(TTSLanguage).all()
     return languages
+
+
+@router.get("/services")
+async def list_tts_services_endpoint():
+    """
+    获取所有可用的TTS服务
+    
+    Returns:
+        Dict[str, str]: 服务名称到服务类型的映射
+    """
+    services = list_tts_services()
+    return {"services": services}
+
+
+@router.post("/synthesize", response_model=TTSSynthesizeResponse)
+async def synthesize_text(request: TTSSynthesizeRequest):
+    """
+    将文本合成为语音（非流式）
+    
+    Args:
+        request: TTS合成请求
+        
+    Returns:
+        TTSSynthesizeResponse: TTS合成响应
+    """
+    # 获取TTS服务
+    service: TTSServiceBase = get_tts_service(request.service_name)
+    if not service:
+        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {request.service_name}")
+    
+    try:
+        # 生成请求ID
+        request_id = str(uuid.uuid4())
+        
+        # 创建临时文件路径
+        os.makedirs("temp", exist_ok=True)
+        output_path = f"temp/{request_id}.{request.format or 'mp3'}"
+        
+        # 合成语音并保存到文件
+        await service.save_to_file(
+            text=request.text,
+            voice_id=request.voice_id,
+            output_path=output_path,
+            speed=request.speed,
+            volume=request.volume,
+            pitch=request.pitch,
+            encoding=request.format
+        )
+        
+        # 构建响应
+        return {
+            "request_id": request_id,
+            "audio_url": f"/tts/audio/{request_id}.{request.format or 'mp3'}",
+            "content_type": f"audio/{request.format or 'mp3'}",
+            "service_name": request.service_name
+        }
+    except Exception as e:
+        logger.error(f"TTS合成失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"TTS合成失败: {str(e)}")
+
+
+@router.post("/synthesize/stream")
+async def stream_synthesize_text(request: TTSSynthesizeRequest):
+    """
+    将文本合成为语音（流式）
+    
+    Args:
+        request: TTS合成请求
+        
+    Returns:
+        StreamingResponse: 流式音频响应
+    """
+    # 获取TTS服务
+    service = get_tts_service(request.service_name)
+    if not service:
+        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {request.service_name}")
+    
+    try:
+        # 创建流式生成器
+        async def audio_generator():
+            async for chunk in service.stream_synthesize(
+                text=request.text,
+                voice_id=request.voice_id,
+                speed=request.speed,
+                volume=request.volume,
+                pitch=request.pitch,
+                encoding=request.format
+            ):
+                yield chunk
+        
+        # 返回流式响应
+        content_type = f"audio/{request.format or 'mp3'}"
+        return StreamingResponse(
+            audio_generator(),
+            media_type=content_type,
+            headers={
+                "X-Request-ID": str(uuid.uuid4()),
+                "X-Service-Name": request.service_name
+            }
+        )
+    except Exception as e:
+        logger.error(f"流式TTS合成失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"流式TTS合成失败: {str(e)}")
+
+
+@router.get("/audio/{filename}")
+async def get_audio_file(filename: str):
+    """
+    获取生成的音频文件
+    
+    Args:
+        filename: 文件名
+        
+    Returns:
+        Response: 音频文件响应
+    """
+    file_path = f"temp/{filename}"
+    
+    # 检查文件是否存在
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"找不到音频文件: {filename}")
+    
+    # 读取文件内容
+    with open(file_path, "rb") as f:
+        content = f.read()
+    
+    # 确定内容类型
+    content_type = "audio/mp3"
+    if filename.endswith(".wav"):
+        content_type = "audio/wav"
+    elif filename.endswith(".ogg"):
+        content_type = "audio/ogg"
+    
+    # 返回文件内容
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )

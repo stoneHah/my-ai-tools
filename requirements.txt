@@ -4,3 +4,4 @@ fastapi[standard]
 dashscope
 pymysql
 sqlalchemy
+aiofiles
