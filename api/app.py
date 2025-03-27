@@ -8,9 +8,10 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.ai_router import router as ai_router
-from api.media_router import router as media_router
-from api.asr_router import router as asr_router
+from api.ai.router import router as ai_router
+from api.media.router import router as media_router
+from api.asr.router import router as asr_router
+from api.tts.router import router as tts_router
 from ai_services.coze_service import register_coze_service
 from ai_services.coze_workflow import register_coze_workflow_service
 from ai_services.asr.registry import register_all_asr_services
@@ -75,6 +76,7 @@ register_services()
 app.include_router(ai_router)
 app.include_router(media_router)
 app.include_router(asr_router)
+app.include_router(tts_router)
 
 # 健康检查端点
 @app.get("/health", tags=["health"])

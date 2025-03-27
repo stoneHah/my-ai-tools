@@ -1,9 +1,9 @@
 """
-API模型定义
-定义API请求和响应的数据模型
+AI模块数据模型定义
 """
-from typing import Dict, List, Optional, Any, Union, Generic, TypeVar
+from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 
 class AIServiceInfo(BaseModel):
@@ -15,6 +15,7 @@ class AIServiceInfo(BaseModel):
 class ChatRequest(BaseModel):
     """聊天请求模型"""
     service_name: Optional[str] = Field("coze", description="服务名称，如coze、openai等")
+    service_type: Optional[str] = Field("chat", description="服务类型，如chat、workflow等")
     message: str = Field(..., description="用户消息")
     conversation_id: Optional[str] = Field(None, description="会话ID，如果不提供则创建新会话")
     parameters: Optional[Dict[str, Any]] = Field(None, description="额外参数")
@@ -36,6 +37,7 @@ class ConversationRequest(BaseModel):
 class ConversationResponse(BaseModel):
     """创建会话响应模型"""
     conversation_id: str = Field(..., description="会话ID")
+    created_at: Optional[str] = Field(None, description="创建时间")
 
 
 class StreamChatResponse(BaseModel):
@@ -45,42 +47,6 @@ class StreamChatResponse(BaseModel):
     delta: str = Field(..., description="本次增量内容")
     conversation_id: str = Field(..., description="会话ID")
     is_final: bool = Field(False, description="是否为最终结果")
-
-
-class ASRRequest(BaseModel):
-    """语音识别请求模型"""
-    service_name: str = Field(..., description="服务名称")
-    audio_url: str = Field(..., description="音频文件URL")
-    parameters: Optional[Dict[str, Any]] = Field(None, description="额外参数")
-
-
-class ASRResponse(BaseModel):
-    """语音识别响应模型"""
-    id: str = Field(..., description="响应ID")
-    text: str = Field(..., description="识别出的文本")
-    status: str = Field("success", description="状态")
-
-
-class StreamASRResponse(BaseModel):
-    """流式语音识别响应模型"""
-    id: str = Field(..., description="响应ID")
-    text: str = Field(..., description="当前累积的文本")
-    delta: str = Field(..., description="本次增量内容")
-    status: str = Field("success", description="状态")
-    is_final: bool = Field(False, description="是否为最终结果")
-
-
-class VideoUrlRequest(BaseModel):
-    """视频URL请求模型"""
-    text_info: str = Field(..., description="视频地址信息")
-    parameters: Optional[Dict[str, Any]] = Field(None, description="额外参数")
-
-
-class VideoUrlResponse(BaseModel):
-    """视频URL响应模型"""
-    id: str = Field(..., description="响应ID")
-    download_url: str = Field(..., description="处理后的视频URL")
-    cover_url: str = Field(..., description="处理后的视频封面URL")
 
 
 class WorkflowRequest(BaseModel):
@@ -108,12 +74,3 @@ class StreamWorkflowResponse(BaseModel):
 class ServicesListResponse(BaseModel):
     """服务列表响应模型"""
     services: Dict[str, List[str]] = Field(..., description="按类型分组的服务列表")
-
-
-T = TypeVar('T')
-
-class APIResponse(BaseModel, Generic[T]):
-    """通用API响应模型"""
-    code: int = Field(200, description="状态码，200表示成功")
-    data: Optional[T] = Field(None, description="响应数据")
-    message: str = Field("", description="响应消息")

@@ -8,9 +8,8 @@ import uuid
 import os
 import logging
 from datetime import datetime
-from typing import Dict, Any
 
-from api.models import VideoUrlRequest, VideoUrlResponse
+from .models import VideoUrlRequest, VideoUrlResponse
 from ai_services.base import AIServiceRegistry
 
 # 设置日志记录器
@@ -52,7 +51,7 @@ async def get_video_download_url(request: VideoUrlRequest):
     # 调用服务
     try:
         # 直接调用run_workflow方法获取结果
-        response: Dict[str, Any] = await service.run_workflow(
+        response = await service.run_workflow(
             workflow_id=workflow_id,
             input_params=input_params
         )

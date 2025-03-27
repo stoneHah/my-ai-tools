@@ -10,7 +10,7 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Background
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
-from api.models import ASRRequest, ASRResponse, StreamASRResponse, APIResponse
+from .models import ASRRequest, ASRResponse, StreamASRResponse, APIResponse
 from ai_services.base import AIServiceRegistry
 
 # 配置日志记录器
@@ -92,7 +92,7 @@ async def stream_recognize_speech(request: ASRRequest):
         try:
             async for chunk in service.stream_recognize_url(
                 audio_url=request.audio_url,
-                **request.parameters
+                **(request.parameters or {})
             ):
                 # 在API层将标准字典格式转换为SSE格式
                 yield f"data: {json.dumps(chunk)}\n\n"
@@ -101,7 +101,7 @@ async def stream_recognize_speech(request: ASRRequest):
             logger.error(f"流式语音识别失败: {str(e)}", exc_info=True)
             # 出错时发送错误信息
             error_json = {"error": {"message": str(e)}}
-            yield f"data: {error_json}\n\n"
+            yield f"data: {json.dumps(error_json)}\n\n"
     
     return StreamingResponse(
         event_generator(),
@@ -242,7 +242,7 @@ async def stream_recognize_file(
                 logger.error(f"流式语音识别失败: {str(e)}", exc_info=True)
                 # 出错时发送错误信息
                 error_json = {"error": {"message": str(e)}}
-                yield f"data: {error_json}\n\n"
+                yield f"data: {json.dumps(error_json)}\n\n"
             finally:
                 # 清理临时文件
                 if os.path.exists(file_path):

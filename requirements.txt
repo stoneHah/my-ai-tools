@@ -2,3 +2,5 @@ cozepy
 python-dotenv
 fastapi[standard]
 dashscope
+pymysql
+sqlalchemy

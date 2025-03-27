@@ -6,13 +6,12 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from datetime import datetime
 import json
-
 import logging
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
 
-from api.models import (
+from .models import (
     ChatRequest, ChatResponse, ServicesListResponse,
     ConversationResponse
 )
@@ -39,11 +38,10 @@ async def create_conversation():
     Returns:
         ConversationResponse: 包含新会话ID的响应
     """
-    # TODO 这边应该独立于具体的服务
     # 获取服务实例
-    service = AIServiceRegistry.get_service("coze","chat")
+    service = AIServiceRegistry.get_service("coze", "chat")
     if not service:
-        raise HTTPException(status_code=404, detail=f"找不到服务: {service_name}")
+        raise HTTPException(status_code=404, detail="找不到服务: coze")
     
     # 调用服务
     try:
@@ -53,8 +51,8 @@ async def create_conversation():
             "created_at": datetime.now().isoformat()
         }
     except NotImplementedError:
-        logger.warning(f"服务 coze 不支持创建会话")
-        raise HTTPException(status_code=501, detail=f"服务 {service_name} 不支持创建会话")
+        logger.warning("服务 coze 不支持创建会话")
+        raise HTTPException(status_code=501, detail="服务 coze 不支持创建会话")
     except Exception as e:
         # 记录详细的异常信息
         logger.error(f"创建会话失败: {str(e)}", exc_info=True)
@@ -67,22 +65,22 @@ async def chat_completion(request: ChatRequest):
     与指定AI服务进行对话（非流式响应）
     
     Args:
-        service_name: 服务名称，如coze、openai等
+        request: 聊天请求
         
     Returns:
         ChatResponse: 对话完成结果
     """
     # 获取服务实例
-    service = AIServiceRegistry.get_service(service_name)
+    service = AIServiceRegistry.get_service(request.service_name, request.service_type)
     if not service:
-        raise HTTPException(status_code=404, detail=f"找不到服务: {service_name}")
+        raise HTTPException(status_code=404, detail=f"找不到服务: {request.service_name}")
     
     # 调用服务
     try:
         response = await service.chat_completion(
             message=request.message,
             conversation_id=request.conversation_id,
-            **request.parameters
+            **(request.parameters or {})
         )
         return response
     except Exception as e:
@@ -95,8 +93,7 @@ async def stream_chat_completion(request: ChatRequest):
     与指定AI服务进行对话（流式响应）
     
     Args:
-        service_name: 服务名称，如coze、openai等
-        service_type: 服务类型，如chat、workflow等
+        request: 聊天请求
         
     Returns:
         StreamingResponse: 流式对话完成结果
@@ -112,7 +109,7 @@ async def stream_chat_completion(request: ChatRequest):
             async for chunk in service.stream_chat_completion(
                 message=request.message,
                 conversation_id=request.conversation_id,
-                **request.parameters
+                **(request.parameters or {})
             ):
                 # 在API层将标准字典格式转换为SSE格式
                 yield f"data: {json.dumps(chunk)}\n\n"
