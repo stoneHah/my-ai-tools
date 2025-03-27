@@ -5,3 +5,6 @@ dashscope
 pymysql
 sqlalchemy
 aiofiles
+oss2
+pytest
+pytest-asyncio

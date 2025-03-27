@@ -85,6 +85,13 @@ class TTSSynthesizeRequest(BaseModel):
     volume: Optional[float] = Field(1.0, description="音量，范围0.5-2.0")
     pitch: Optional[float] = Field(1.0, description="音调，范围0.5-2.0")
     format: Optional[str] = Field("mp3", description="音频格式，如mp3、wav")
+    encoding: str = Field("mp3", description="音频格式，如mp3、wav、ogg等")
+
+
+class TTSSynthesizeOSSRequest(TTSSynthesizeRequest):
+    """TTS合成并保存到OSS的请求"""
+    object_key: Optional[str] = Field(None, description="OSS对象键名/路径，如果不提供则自动生成")
+    oss_provider: str = Field("aliyun", description="OSS提供商，默认为阿里云")
 
 
 class TTSSynthesizeResponse(BaseModel):

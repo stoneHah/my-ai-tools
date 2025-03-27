@@ -18,7 +18,7 @@ from .models import (
     VoiceResponse, VoicePlatformResponse,
     VoiceCategoryResponse, VoiceLanguageResponse,
     SimpleVoicesListResponse,
-    TTSSynthesizeRequest, TTSSynthesizeResponse
+    TTSSynthesizeRequest, TTSSynthesizeResponse, TTSSynthesizeOSSRequest
 )
 
 # 配置日志记录器
@@ -224,6 +224,50 @@ async def synthesize_text(request: TTSSynthesizeRequest):
         raise HTTPException(status_code=500, detail=f"TTS合成失败: {str(e)}")
 
 
+@router.post("/synthesize/oss", response_model=TTSSynthesizeResponse)
+async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
+    """
+    将文本合成为语音并保存到OSS
+    
+    Args:
+        request: TTS合成请求
+        
+    Returns:
+        TTSSynthesizeResponse: TTS合成响应
+    """
+    # 获取TTS服务
+    service: TTSServiceBase = get_tts_service(request.service_name)
+    if not service:
+        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {request.service_name}")
+    
+    try:
+        # 生成对象键
+        object_key = request.object_key or f"tts/{uuid.uuid4()}.mp3"
+        
+        # 合成语音并保存到OSS
+        audio_url = await service.save_to_oss(
+            text=request.text,
+            voice_id=request.voice_id,
+            object_key=object_key,
+            oss_provider=request.oss_provider,
+            speed=request.speed,
+            volume=request.volume,
+            pitch=request.pitch,
+            encoding=request.encoding
+        )
+        
+        # 构建响应
+        return {
+            "request_id": str(uuid.uuid4()),
+            "audio_url": audio_url,
+            "content_type": f"audio/{request.encoding}",
+            "service_name": request.service_name
+        }
+    except Exception as e:
+        logger.error(f"TTS合成并保存到OSS失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"TTS合成并保存到OSS失败: {str(e)}")
+
+
 @router.post("/synthesize/stream")
 async def stream_synthesize_text(request: TTSSynthesizeRequest):
     """
@@ -249,12 +293,12 @@ async def stream_synthesize_text(request: TTSSynthesizeRequest):
                 speed=request.speed,
                 volume=request.volume,
                 pitch=request.pitch,
-                encoding=request.format
+                encoding=request.encoding
             ):
                 yield chunk
         
         # 返回流式响应
-        content_type = f"audio/{request.format or 'mp3'}"
+        content_type = f"audio/{request.encoding or 'mp3'}"
         return StreamingResponse(
             audio_generator(),
             media_type=content_type,

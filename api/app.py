@@ -5,8 +5,9 @@ FastAPI主应用
 import os
 import uvicorn
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from api.ai.router import router as ai_router
 from api.media.router import router as media_router
@@ -16,6 +17,7 @@ from ai_services.coze_service import register_coze_service
 from ai_services.coze_workflow import register_coze_workflow_service
 from ai_services.asr.registry import register_all_asr_services
 from ai_services.tts.registry import register_all_tts_services
+from ai_services.storage.registry import register_all_storage_services
 
 # 配置日志
 logging.basicConfig(
@@ -43,8 +45,9 @@ app.add_middleware(
 )
 
 # 注册AI服务
-def register_services():
-    """注册所有AI服务"""
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时执行"""
     # 注册Coze服务
     coze_service = register_coze_service()
     if coze_service:
@@ -75,11 +78,8 @@ def register_services():
     else:
         print("未注册TTS服务，请检查环境变量VOLCENGINE_TTS_APPID、VOLCENGINE_TTS_TOKEN和VOLCENGINE_TTS_CLUSTER是否已设置")
     
-    # 在这里注册其他AI服务
-    # ...
-
-# 启动时注册服务
-register_services()
+    # 注册所有存储服务
+    register_all_storage_services()
 
 # 添加路由
 app.include_router(ai_router)

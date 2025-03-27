@@ -13,6 +13,7 @@ import logging
 from typing import Dict, Any, Optional, AsyncGenerator, BinaryIO, List
 
 from ai_services.tts.base import TTSServiceBase
+from ai_services.storage.registry import get_storage_service
 
 # 配置日志记录器
 logger = logging.getLogger(__name__)
@@ -180,6 +181,54 @@ class VolcengineTTSService(TTSServiceBase):
             f.write(audio_data)
         
         return output_path
+    
+    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> str:
+        """
+        将文本合成为语音并保存到对象存储服务(OSS)
+        
+        Args:
+            text: 要合成的文本
+            voice_id: 音色ID
+            object_key: OSS对象键名/路径
+            oss_provider: OSS提供商，默认为"aliyun"
+            **kwargs: 其他参数，如速度、音量、音调等
+            
+        Returns:
+            OSS中的对象URL
+        """
+        # 获取合成的音频数据
+        audio_data = await self.synthesize(text, voice_id, **kwargs)
+        
+        # 获取存储服务
+        storage_service = get_storage_service(oss_provider)
+        if not storage_service:
+            raise ValueError(f"未找到存储服务提供商: {oss_provider}")
+        
+        # 获取音频格式
+        encoding = kwargs.get("encoding", "mp3").lower()
+        
+        # 确保对象键有正确的扩展名
+        if "." not in os.path.basename(object_key):
+            object_key += f".{encoding}"
+        
+        # 根据音频格式设置正确的content_type
+        content_type_map = {
+            "mp3": "audio/mpeg",
+            "wav": "audio/wav",
+            "ogg": "audio/ogg",
+            "aac": "audio/aac",
+            "flac": "audio/flac"
+        }
+        content_type = kwargs.get("content_type", content_type_map.get(encoding, "audio/mpeg"))
+        
+        # 上传到OSS
+        url = await storage_service.upload_data(
+            audio_data, 
+            object_key, 
+            content_type=content_type
+        )
+        
+        return url
     
     def _create_request_json(self, text: str, voice_id: str, **kwargs) -> Dict[str, Any]:
         """

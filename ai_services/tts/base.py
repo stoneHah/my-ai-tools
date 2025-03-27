@@ -1,12 +1,13 @@
 """
-语音合成服务基础抽象类定义
+语音合成服务基类
+定义了语音合成服务的通用接口
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, AsyncGenerator, BinaryIO, Union
 
 
 class TTSServiceBase(ABC):
-    """语音合成服务基础抽象类"""
+    """语音合成服务基类"""
     
     @property
     @abstractmethod
@@ -63,5 +64,22 @@ class TTSServiceBase(ABC):
             
         Returns:
             保存的文件路径
+        """
+        pass
+    
+    @abstractmethod
+    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> str:
+        """
+        将文本合成为语音并保存到对象存储服务(OSS)
+        
+        Args:
+            text: 要合成的文本
+            voice_id: 音色ID
+            object_key: OSS对象键名/路径
+            oss_provider: OSS提供商，默认为"aliyun"
+            **kwargs: 其他参数，如速度、音量、音调等
+            
+        Returns:
+            OSS中的对象URL
         """
         pass
