@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tts", tags=["tts"])
 
 
-@router.get("/voices", response_model=SimpleVoicesListResponse)
+@router.get("/voices", response_model=SimpleVoicesListResponse, summary="获取TTS音色列表")
 async def list_voices(
     platform: Optional[str] = Query(
         None, 
@@ -111,7 +111,7 @@ async def list_voices(
     }
 
 
-@router.get("/voices/{voice_id}", response_model=VoiceResponse)
+@router.get("/voices/{voice_id}", response_model=VoiceResponse, summary="获取指定ID的TTS音色详情")
 async def get_voice(voice_id: str, db: Session = Depends(get_db)):
     """
     获取指定ID的TTS音色详情
@@ -129,7 +129,7 @@ async def get_voice(voice_id: str, db: Session = Depends(get_db)):
     return voice
 
 
-@router.get("/platforms", response_model=List[VoicePlatformResponse])
+@router.get("/platforms", response_model=List[VoicePlatformResponse], summary="获取所有TTS平台列表")
 async def list_platforms(db: Session = Depends(get_db)):
     """
     获取所有TTS平台列表
@@ -141,7 +141,7 @@ async def list_platforms(db: Session = Depends(get_db)):
     return platforms
 
 
-@router.get("/categories", response_model=List[VoiceCategoryResponse])
+@router.get("/categories", response_model=List[VoiceCategoryResponse], summary="获取所有TTS音色分类")
 async def list_categories(db: Session = Depends(get_db)):
     """
     获取所有TTS音色分类
@@ -153,7 +153,7 @@ async def list_categories(db: Session = Depends(get_db)):
     return categories
 
 
-@router.get("/languages", response_model=List[VoiceLanguageResponse])
+@router.get("/languages", response_model=List[VoiceLanguageResponse], summary="获取所有支持的语言")
 async def list_languages(db: Session = Depends(get_db)):
     """
     获取所有支持的语言
@@ -165,7 +165,7 @@ async def list_languages(db: Session = Depends(get_db)):
     return languages
 
 
-@router.get("/services")
+@router.get("/services", summary="获取所有可用的TTS服务")
 async def list_tts_services_endpoint():
     """
     获取所有可用的TTS服务
@@ -177,7 +177,7 @@ async def list_tts_services_endpoint():
     return {"services": services}
 
 
-@router.post("/synthesize", response_model=TTSSynthesizeResponse)
+@router.post("/synthesize", response_model=TTSSynthesizeResponse, summary="将文本合成为语音并保存到OSS")
 async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
     """
     将文本合成为语音并保存到OSS
@@ -221,7 +221,7 @@ async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
         raise HTTPException(status_code=500, detail=f"TTS合成并保存到OSS失败: {str(e)}")
 
 
-@router.post("/synthesize/stream")
+@router.post("/synthesize/stream", summary="将文本合成为语音（流式）")
 async def stream_synthesize_text(request: TTSSynthesizeRequest):
     """
     将文本合成为语音（流式）
@@ -265,39 +265,3 @@ async def stream_synthesize_text(request: TTSSynthesizeRequest):
         raise HTTPException(status_code=500, detail=f"流式TTS合成失败: {str(e)}")
 
 
-@router.get("/audio/{filename}")
-async def get_audio_file(filename: str):
-    """
-    获取生成的音频文件
-    
-    Args:
-        filename: 文件名
-        
-    Returns:
-        Response: 音频文件响应
-    """
-    file_path = f"temp/{filename}"
-    
-    # 检查文件是否存在
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"找不到音频文件: {filename}")
-    
-    # 读取文件内容
-    with open(file_path, "rb") as f:
-        content = f.read()
-    
-    # 确定内容类型
-    content_type = "audio/mp3"
-    if filename.endswith(".wav"):
-        content_type = "audio/wav"
-    elif filename.endswith(".ogg"):
-        content_type = "audio/ogg"
-    
-    # 返回文件内容
-    return Response(
-        content=content,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
-    )
