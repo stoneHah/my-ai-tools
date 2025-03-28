@@ -45,19 +45,13 @@ async def recognize_speech(request: ASRRequest):
         # 调用服务进行识别
         response = await service.recognize_url(audio_url=audio_url, **params)
         
-        # 构建响应
-        asr_response = ASRResponse(
+        # 返回识别结果
+        return ASRResponse(
             id=response.get("id", ""),
             text=response.get("text", ""),
             status=response.get("status", "success")
         )
         
-        # 返回统一格式的响应
-        return APIResponse(
-            code=200,
-            data=asr_response,
-            message="语音识别成功"
-        )
     except Exception as e:
         logger.error(f"语音识别失败: {str(e)}", exc_info=True)
         return APIResponse(

@@ -178,53 +178,6 @@ async def list_tts_services_endpoint():
 
 
 @router.post("/synthesize", response_model=TTSSynthesizeResponse)
-async def synthesize_text(request: TTSSynthesizeRequest):
-    """
-    将文本合成为语音（非流式）
-    
-    Args:
-        request: TTS合成请求
-        
-    Returns:
-        TTSSynthesizeResponse: TTS合成响应
-    """
-    # 获取TTS服务
-    service: TTSServiceBase = get_tts_service(request.service_name)
-    if not service:
-        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {request.service_name}")
-    
-    try:
-        # 生成请求ID
-        request_id = str(uuid.uuid4())
-        
-        # 创建临时文件路径
-        os.makedirs("temp", exist_ok=True)
-        output_path = f"temp/{request_id}.{request.format or 'mp3'}"
-        
-        # 合成语音并保存到文件
-        await service.save_to_file(
-            text=request.text,
-            voice_id=request.voice_id,
-            output_path=output_path,
-            speed=request.speed,
-            volume=request.volume,
-            pitch=request.pitch,
-            encoding=request.format
-        )
-        
-        # 构建响应
-        return {
-            "request_id": request_id,
-            "audio_url": f"/tts/audio/{request_id}.{request.format or 'mp3'}",
-            "content_type": f"audio/{request.format or 'mp3'}",
-            "service_name": request.service_name
-        }
-    except Exception as e:
-        logger.error(f"TTS合成失败: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"TTS合成失败: {str(e)}")
-
-
-@router.post("/synthesize/oss", response_model=TTSSynthesizeResponse)
 async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
     """
     将文本合成为语音并保存到OSS
@@ -242,14 +195,14 @@ async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
     
     try:
         # 生成对象键
-        object_key = request.object_key or f"tts/{uuid.uuid4()}.mp3"
+        object_key = request.object_key or f"tts/{uuid.uuid4()}.{request.format or 'mp3'}"
         
         # 合成语音并保存到OSS
         audio_url = await service.save_to_oss(
             text=request.text,
             voice_id=request.voice_id,
             object_key=object_key,
-            oss_provider=request.oss_provider,
+            # oss_provider=request.oss_provider,
             speed=request.speed,
             volume=request.volume,
             pitch=request.pitch,

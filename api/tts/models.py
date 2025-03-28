@@ -91,7 +91,7 @@ class TTSSynthesizeRequest(BaseModel):
 class TTSSynthesizeOSSRequest(TTSSynthesizeRequest):
     """TTS合成并保存到OSS的请求"""
     object_key: Optional[str] = Field(None, description="OSS对象键名/路径，如果不提供则自动生成")
-    oss_provider: str = Field("aliyun", description="OSS提供商，默认为阿里云")
+    # oss_provider: str = Field("aliyun", description="OSS提供商，默认为阿里云")
 
 
 class TTSSynthesizeResponse(BaseModel):

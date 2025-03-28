@@ -18,6 +18,7 @@ from ai_services.coze_workflow import register_coze_workflow_service
 from ai_services.asr.registry import register_all_asr_services
 from ai_services.tts.registry import register_all_tts_services
 from ai_services.storage.registry import register_all_storage_services
+from api.middleware.response import APIResponseMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -42,6 +43,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# 添加响应中间件
+app.add_middleware(
+    APIResponseMiddleware,
+    exclude_paths=["/docs", "/redoc", "/openapi.json", "/tts/synthesize/stream"],
+    exclude_content_types=["application/octet-stream", "audio/", "video/", "image/"]
 )
 
 # 注册AI服务

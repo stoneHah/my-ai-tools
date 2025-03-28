@@ -71,7 +71,7 @@ class AliyunOSSService(StorageServiceBase):
             result = self.bucket.put_object_from_file(object_key, file_path, headers=headers)
             
             # 返回对象URL
-            return self.bucket.sign_url('GET', object_key, 0)  # 永久URL
+            return self.bucket.sign_url('GET', object_key, 30*60)  # 30分钟URL
         except OssError as e:
             logger.error(f"上传文件到阿里云OSS失败: {str(e)}", exc_info=True)
             raise
@@ -101,7 +101,7 @@ class AliyunOSSService(StorageServiceBase):
                 result = self.bucket.put_object(object_key, data, headers=headers)
             
             # 返回对象URL
-            return self.bucket.sign_url('GET', object_key, 0)  # 永久URL
+            return self.bucket.sign_url('GET', object_key, 30*60)  # 30分钟URL
         except OssError as e:
             logger.error(f"上传数据到阿里云OSS失败: {str(e)}", exc_info=True)
             raise
