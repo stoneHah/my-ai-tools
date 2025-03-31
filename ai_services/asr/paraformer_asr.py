@@ -117,8 +117,8 @@ class DashScopeParaformerASRService(ASRServiceBase):
             }
             
         # 获取音频文件的格式
-        audio_file_format = audio_file_path.split('.')[-1]
-        if audio_file_format not in ['wav', 'mp3', 'aac', 'pcm']:
+        audio_file_format = audio_file_path.split('.')[-1].lower()
+        if audio_file_format not in ['wav', 'mp3', 'aac', 'pcm', 'amr']:
             error_msg = f"不支持的音频文件格式: {audio_file_format}"
             logger.error(error_msg)
             return {

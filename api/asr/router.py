@@ -103,7 +103,7 @@ async def stream_recognize_speech(request: ASRRequest):
     )
 
 
-@router.post("/file", response_model=APIResponse[ASRResponse])
+@router.post("/file", response_model=ASRResponse)
 async def recognize_file(
     file: UploadFile = File(..., description="要识别的音频文件"),
     sample_rate: int = Form(16000, description="音频采样率，默认为16000Hz"),
@@ -156,24 +156,19 @@ async def recognize_file(
         )
         
         # 构建响应
-        asr_response = ASRResponse(
+        return ASRResponse(
             id=response.get("id", ""),
             text=response.get("text", ""),
             status=response.get("status", "success")
         )
         
-        # 返回统一格式的响应
-        return APIResponse(
-            code=200,
-            data=asr_response,
-            message="文件识别成功"
-        )
     except Exception as e:
         logger.error(f"文件识别失败: {str(e)}", exc_info=True)
-        return APIResponse(
-            code=500,
-            data=None,
-            message=f"文件识别失败: {str(e)}"
+        return ASRResponse(
+            id="",
+            text="",
+            status="error",
+            error=str(e)
         )
     finally:
         # 清理临时文件
