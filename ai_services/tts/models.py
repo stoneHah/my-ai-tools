@@ -30,6 +30,7 @@ class TTSPlatform(Base):
     
     # 关系
     voices = relationship("TTSVoice", back_populates="platform")
+    clone_voices = relationship("TTSCloneVoice", back_populates="platform")
     
     def __repr__(self):
         return f"<TTSPlatform(name='{self.name}', code='{self.code}')>"
@@ -89,3 +90,6 @@ class TTSVoice(Base):
     
     def __repr__(self):
         return f"<TTSVoice(name='{self.name}', voice_id='{self.voice_id}')>"
+
+# 导入克隆音色模型，避免循环导入
+from ai_services.tts.clone_models import TTSCloneVoice
