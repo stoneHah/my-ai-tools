@@ -76,6 +76,8 @@ class TTSVoice(Base):
     name = Column(String(100), nullable=False, comment='音色名称')
     gender = Column(String(20), nullable=True, comment='性别')
     description = Column(Text, nullable=True, comment='音色描述')
+    avatar_url = Column(String(255), nullable=True, comment='音色头像URL')
+    sample_audio_url = Column(String(255), nullable=True, comment='音色试听URL')
     platform_id = Column(Integer, ForeignKey('tts_platforms.id'), nullable=False, comment='平台ID')
     category_id = Column(Integer, ForeignKey('tts_voice_categories.id'), nullable=True, comment='分类ID')
     is_streaming = Column(Boolean, default=True, comment='是否支持流式接口')
