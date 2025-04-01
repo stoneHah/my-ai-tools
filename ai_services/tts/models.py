@@ -3,7 +3,7 @@ TTS音色数据模型定义
 """
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Table
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, foreign
 
 from db.config import Base
 
@@ -30,7 +30,7 @@ class TTSPlatform(Base):
     
     # 关系
     voices = relationship("TTSVoice", back_populates="platform")
-    clone_voices = relationship("TTSCloneVoice", back_populates="platform")
+    clone_voices = relationship("TTSCloneVoice", back_populates="platform", primaryjoin="TTSPlatform.id == foreign(TTSCloneVoice.platform_id)")
     
     def __repr__(self):
         return f"<TTSPlatform(name='{self.name}', code='{self.code}')>"

@@ -3,7 +3,7 @@
 定义了语音克隆服务的通用接口
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List, Optional
 
 
 class VoiceCloneServiceBase(ABC):
@@ -17,8 +17,8 @@ class VoiceCloneServiceBase(ABC):
     
     @property
     @abstractmethod
-    def service_type(self) -> str:
-        """服务类型，应为voice-clone"""
+    def clone_service_type(self) -> str:
+        """服务类型，固定值voice-clone"""
         pass
     
     @abstractmethod
@@ -34,7 +34,7 @@ class VoiceCloneServiceBase(ABC):
             **kwargs: 其他参数
             
         Returns:
-            克隆任务信息，包含task_id、status等
+            克隆任务信息，包含voice_id
         """
         pass
     
@@ -48,7 +48,7 @@ class VoiceCloneServiceBase(ABC):
             **kwargs: 其他参数
             
         Returns:
-            任务状态信息，包含status、voice_id等
+            任务状态信息
         """
         pass
     
@@ -64,6 +64,22 @@ class VoiceCloneServiceBase(ABC):
             
         Returns:
             克隆音色列表
+        """
+        pass
+    
+    @abstractmethod
+    async def get_clone_voice(self, voice_id: str, user_id: str, app_id: str, **kwargs) -> Dict[str, Any]:
+        """
+        获取克隆音色详情
+        
+        Args:
+            voice_id: 音色ID
+            user_id: 用户ID
+            app_id: 应用ID
+            **kwargs: 其他参数
+            
+        Returns:
+            克隆音色详情
         """
         pass
     

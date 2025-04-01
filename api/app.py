@@ -13,10 +13,12 @@ from api.ai.router import router as ai_router
 from api.media.router import router as media_router
 from api.asr.router import router as asr_router
 from api.tts.router import router as tts_router
+from api.tts.clone_router import router as tts_clone_router
 from ai_services.coze_service import register_coze_service
 from ai_services.coze_workflow import register_coze_workflow_service
 from ai_services.asr.registry import register_all_asr_services
 from ai_services.tts.registry import register_all_tts_services
+from ai_services.tts.clone_registry import register_all_voice_clone_services
 from ai_services.storage.registry import register_all_storage_services
 from api.middleware.response import APIResponseMiddleware
 
@@ -86,6 +88,14 @@ async def startup_event():
     else:
         print("未注册TTS服务，请检查环境变量VOLCENGINE_TTS_APPID、VOLCENGINE_TTS_TOKEN和VOLCENGINE_TTS_CLUSTER是否已设置")
     
+    # 注册所有语音克隆服务
+    voice_clone_services = register_all_voice_clone_services()
+    if voice_clone_services:
+        for name, service in voice_clone_services.items():
+            print(f"已注册语音克隆服务: {service.service_name} (类型: {service.clone_service_type})")
+    else:
+        print("未注册语音克隆服务，请检查环境变量DASHSCOPE_API_KEY是否已设置")
+    
     # 注册所有存储服务
     register_all_storage_services()
 
@@ -94,6 +104,7 @@ app.include_router(ai_router)
 app.include_router(media_router)
 app.include_router(asr_router)
 app.include_router(tts_router)
+app.include_router(tts_clone_router)
 
 # 健康检查端点
 @app.get("/health", tags=["health"])

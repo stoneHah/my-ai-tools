@@ -31,7 +31,7 @@ router = APIRouter(prefix="/tts/clone", tags=["tts-clone"])
 
 
 @router.get("/services", summary="获取所有可用的语音克隆服务")
-async def list_voice_clone_services_endpoint():
+def list_voice_clone_services_endpoint():
     """
     获取所有可用的语音克隆服务
     
@@ -73,18 +73,52 @@ async def create_clone_voice(request: CloneVoiceRequest, db: Session = Depends(g
         if not platform:
             raise HTTPException(status_code=404, detail=f"找不到平台: {service_name}")
         
+        # 直接创建克隆音色记录
+        clone_voice = TTSCloneVoice(
+            voice_id=result["voice_id"],
+            name=request.voice_name,
+            description=f"由{request.voice_name}克隆生成的音色",
+            user_id=request.user_id,
+            app_id=request.app_id,
+            platform_id=platform.id,
+            original_sample_url=request.sample_url,
+            is_streaming=True,
+            is_active=True
+        )
+        
+        # 将记录添加到数据库并提交
+        db.add(clone_voice)
+        db.flush()  # 更新以获取ID
+        
+        # 添加默认支持的语言（中文和英文）
+        zh_lang = db.query(TTSLanguage).filter(TTSLanguage.code == "zh").first()
+        en_lang = db.query(TTSLanguage).filter(TTSLanguage.code == "en").first()
+        
+        if zh_lang:
+            db.add(TTSCloneVoiceLanguage(
+                clone_voice_id=clone_voice.id,
+                language_id=zh_lang.id
+            ))
+        
+        if en_lang:
+            db.add(TTSCloneVoiceLanguage(
+                clone_voice_id=clone_voice.id,
+                language_id=en_lang.id
+            ))
+        
         # 创建克隆任务记录
-        clone_task = TTSCloneTask(
+        task = TTSCloneTask(
             task_id=result["task_id"],
             user_id=request.user_id,
             app_id=request.app_id,
+            platform_id=platform.id,
             sample_url=request.sample_url,
             voice_name=request.voice_name,
-            status=result["status"],
-            platform_id=platform.id
+            status="success",
+            result_voice_id=result["voice_id"]
         )
         
-        db.add(clone_task)
+        db.add(task)
         db.commit()
         
         return result
@@ -198,47 +232,79 @@ async def list_clone_voices(
     Returns:
         CloneVoiceListResponse: 克隆音色列表响应
     """
-    # 构建查询
-    query = db.query(TTSCloneVoice).filter(
-        TTSCloneVoice.user_id == user_id,
-        TTSCloneVoice.app_id == app_id,
-        TTSCloneVoice.is_active == True
-    )
-    
-    # 应用平台过滤
-    if platform:
-        query = query.join(TTSPlatform).filter(TTSPlatform.code == platform)
-    
-    # 执行查询
-    clone_voices = query.all()
-    total = len(clone_voices)
-    
-    # 构建响应
-    voice_details = []
-    for voice in clone_voices:
-        # 获取支持的语言
-        languages = [lang.language.code for lang in voice.languages]
-        
-        # 构建详情
-        voice_detail = CloneVoiceDetail(
-            voice_id=voice.voice_id,
-            name=voice.name,
-            description=voice.description,
-            user_id=voice.user_id,
-            app_id=voice.app_id,
-            platform=voice.platform.code,
-            original_sample_url=voice.original_sample_url,
-            languages=languages,
-            is_streaming=voice.is_streaming,
-            created_at=voice.created_at.isoformat()
-        )
-        
-        voice_details.append(voice_detail)
-    
-    return {
-        "total": total,
-        "voices": voice_details
-    }
+    try:
+        # 构建查询
+        if platform:
+            # 获取平台ID
+            platform_obj = db.query(TTSPlatform).filter(TTSPlatform.code == platform).first()
+            if not platform_obj:
+                raise HTTPException(status_code=404, detail=f"找不到平台: {platform}")
+            
+            # 获取语音克隆服务
+            service: VoiceCloneServiceBase = get_voice_clone_service(platform)
+            if not service:
+                raise HTTPException(status_code=404, detail=f"找不到语音克隆服务: {platform}")
+            
+            # 调用服务获取克隆音色列表
+            api_voices = await service.list_clone_voices(user_id, app_id)
+            
+            # 构建响应
+            voice_details = []
+            for voice in api_voices:
+                voice_detail = CloneVoiceDetail(
+                    voice_id=voice["voice_id"],
+                    name=voice["name"],
+                    description=voice["description"],
+                    user_id=voice["user_id"],
+                    app_id=voice["app_id"],
+                    platform=platform,
+                    original_sample_url=voice["sample_url"],
+                    languages=voice["languages"],
+                    is_streaming=voice["is_streaming"],
+                    created_at=voice["created_at"]
+                )
+                
+                voice_details.append(voice_detail)
+            
+            return {
+                "total": len(voice_details),
+                "voices": voice_details
+            }
+        else:
+            # 获取所有平台的克隆音色
+            voices = db.query(TTSCloneVoice, TTSPlatform).join(
+                TTSPlatform, TTSCloneVoice.platform_id == TTSPlatform.id
+            ).filter(
+                TTSCloneVoice.user_id == user_id,
+                TTSCloneVoice.app_id == app_id,
+                TTSCloneVoice.is_active == True
+            ).all()
+            
+            # 构建响应
+            voice_details = []
+            for voice, platform in voices:
+                voice_detail = CloneVoiceDetail(
+                    voice_id=voice.voice_id,
+                    name=voice.name,
+                    description=voice.description,
+                    user_id=voice.user_id,
+                    app_id=voice.app_id,
+                    platform=platform.code,
+                    original_sample_url=voice.original_sample_url,
+                    languages=[lang.language.code for lang in voice.languages],
+                    is_streaming=voice.is_streaming,
+                    created_at=voice.created_at.isoformat() if voice.created_at else None
+                )
+                
+                voice_details.append(voice_detail)
+            
+            return {
+                "total": len(voice_details),
+                "voices": voice_details
+            }
+    except Exception as e:
+        logger.error(f"获取克隆音色列表失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取克隆音色列表失败: {str(e)}")
 
 
 @router.get("/voices/{voice_id}", response_model=CloneVoiceDetail, summary="获取克隆音色详情")
@@ -259,35 +325,74 @@ async def get_clone_voice(
     Returns:
         CloneVoiceDetail: 克隆音色详情
     """
-    # 查询克隆音色
-    voice = db.query(TTSCloneVoice).filter(
-        TTSCloneVoice.voice_id == voice_id,
-        TTSCloneVoice.user_id == user_id,
-        TTSCloneVoice.app_id == app_id,
-        TTSCloneVoice.is_active == True
-    ).first()
-    
-    if not voice:
-        raise HTTPException(status_code=404, detail=f"找不到克隆音色: {voice_id}")
-    
-    # 获取支持的语言
-    languages = [lang.language.code for lang in voice.languages]
-    
-    # 构建详情
-    voice_detail = CloneVoiceDetail(
-        voice_id=voice.voice_id,
-        name=voice.name,
-        description=voice.description,
-        user_id=voice.user_id,
-        app_id=voice.app_id,
-        platform=voice.platform.code,
-        original_sample_url=voice.original_sample_url,
-        languages=languages,
-        is_streaming=voice.is_streaming,
-        created_at=voice.created_at.isoformat()
-    )
-    
-    return voice_detail
+    try:
+        # 从数据库查询克隆音色
+        voice = db.query(TTSCloneVoice).filter(
+            TTSCloneVoice.voice_id == voice_id,
+            TTSCloneVoice.user_id == user_id,
+            TTSCloneVoice.app_id == app_id,
+            TTSCloneVoice.is_active == True
+        ).first()
+        
+        if not voice:
+            # 如果数据库中没有找到，尝试从各个平台获取
+            platforms = db.query(TTSPlatform).all()
+            
+            for platform_obj in platforms:
+                service: VoiceCloneServiceBase = get_voice_clone_service(platform_obj.code)
+                if service:
+                    try:
+                        # 调用服务获取克隆音色详情
+                        voice_info = await service.get_clone_voice(voice_id, user_id, app_id)
+                        
+                        if voice_info:
+                            # 构建详情
+                            return CloneVoiceDetail(
+                                voice_id=voice_info["voice_id"],
+                                name=voice_info.get("name", "Unknown"),
+                                description=voice_info.get("description", ""),
+                                user_id=user_id,
+                                app_id=app_id,
+                                platform=platform_obj.code,
+                                original_sample_url=voice_info.get("sample_url", ""),
+                                languages=voice_info.get("languages", []),
+                                is_streaming=voice_info.get("is_streaming", True),
+                                created_at=voice_info.get("created_at")
+                            )
+                    except Exception as e:
+                        logger.warning(f"从平台{platform_obj.code}获取克隆音色失败: {str(e)}")
+                        continue
+            
+            # 如果所有平台都没有找到，返回404
+            raise HTTPException(status_code=404, detail=f"没有找到克隆音色: {voice_id}")
+        
+        # 获取支持的语言
+        language_relations = db.query(TTSCloneVoiceLanguage).filter(
+            TTSCloneVoiceLanguage.clone_voice_id == voice.id
+        ).all()
+        
+        language_ids = [relation.language_id for relation in language_relations]
+        languages = db.query(TTSLanguage).filter(TTSLanguage.id.in_(language_ids)).all()
+        language_codes = [lang.code for lang in languages]
+        
+        # 构建详情
+        return CloneVoiceDetail(
+            voice_id=voice.voice_id,
+            name=voice.name,
+            description=voice.description,
+            user_id=voice.user_id,
+            app_id=voice.app_id,
+            platform=voice.platform.code,
+            original_sample_url=voice.original_sample_url,
+            languages=language_codes,
+            is_streaming=voice.is_streaming,
+            created_at=voice.created_at.isoformat() if voice.created_at else None
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取克隆音色详情失败: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取克隆音色详情失败: {str(e)}")
 
 
 @router.delete("/voices/{voice_id}", summary="删除克隆音色")
@@ -308,23 +413,27 @@ async def delete_clone_voice(
     Returns:
         删除结果
     """
-    # 查询克隆音色
-    voice = db.query(TTSCloneVoice).filter(
-        TTSCloneVoice.voice_id == voice_id,
-        TTSCloneVoice.user_id == user_id,
-        TTSCloneVoice.app_id == app_id,
-        TTSCloneVoice.is_active == True
-    ).first()
-    
-    if not voice:
-        raise HTTPException(status_code=404, detail=f"找不到克隆音色: {voice_id}")
-    
-    # 获取语音克隆服务
-    service: VoiceCloneServiceBase = get_voice_clone_service(voice.platform.code)
-    if not service:
-        raise HTTPException(status_code=404, detail=f"找不到语音克隆服务: {voice.platform.code}")
-    
     try:
+        # 查询克隆音色
+        voice = db.query(TTSCloneVoice).filter(
+            TTSCloneVoice.voice_id == voice_id,
+            TTSCloneVoice.user_id == user_id,
+            TTSCloneVoice.app_id == app_id
+        ).first()
+        
+        if not voice:
+            raise HTTPException(status_code=404, detail=f"找不到克隆音色: {voice_id}")
+        
+        # 获取平台对象
+        platform_obj = db.query(TTSPlatform).filter(TTSPlatform.id == voice.platform_id).first()
+        if not platform_obj:
+            raise HTTPException(status_code=404, detail=f"找不到平台ID: {voice.platform_id}")
+        
+        # 获取语音克隆服务
+        service: VoiceCloneServiceBase = get_voice_clone_service(platform_obj.code)
+        if not service:
+            raise HTTPException(status_code=404, detail=f"找不到语音克隆服务: {platform_obj.code}")
+        
         # 调用服务删除克隆音色
         result = await service.delete_clone_voice(voice_id, user_id, app_id)
         
@@ -360,38 +469,48 @@ async def update_clone_voice(
     Returns:
         更新结果
     """
-    # 查询克隆音色
-    voice = db.query(TTSCloneVoice).filter(
-        TTSCloneVoice.voice_id == voice_id,
-        TTSCloneVoice.user_id == user_id,
-        TTSCloneVoice.app_id == app_id,
-        TTSCloneVoice.is_active == True
-    ).first()
-    
-    if not voice:
-        raise HTTPException(status_code=404, detail=f"找不到克隆音色: {voice_id}")
-    
-    # 获取语音克隆服务
-    service: VoiceCloneServiceBase = get_voice_clone_service(voice.platform.code)
-    if not service:
-        raise HTTPException(status_code=404, detail=f"找不到语音克隆服务: {voice.platform.code}")
-    
     try:
+        # 查询克隆音色
+        voice = db.query(TTSCloneVoice).filter(
+            TTSCloneVoice.voice_id == voice_id,
+            TTSCloneVoice.user_id == user_id,
+            TTSCloneVoice.app_id == app_id,
+            TTSCloneVoice.is_active == True
+        ).first()
+        
+        if not voice:
+            raise HTTPException(status_code=404, detail=f"找不到克隆音色: {voice_id}")
+        
+        # 获取语音克隆服务
+        service: VoiceCloneServiceBase = get_voice_clone_service(voice.platform.code)
+        if not service:
+            raise HTTPException(status_code=404, detail=f"找不到语音克隆服务: {voice.platform.code}")
+        
+        # 构建更新参数
+        update_params = {}
+        if name is not None:
+            update_params["name"] = name
+        if description is not None:
+            update_params["description"] = description
+        
+        # 如果没有更新参数，直接返回成功
+        if not update_params:
+            return {
+                "voice_id": voice.voice_id,
+                "status": "success",
+                "message": "没有更新",
+                "updated_fields": []
+            }
+        
         # 调用服务更新克隆音色信息
-        kwargs = {}
-        if name:
-            kwargs["name"] = name
-        if description:
-            kwargs["description"] = description
-            
-        result = await service.update_clone_voice(voice_id, user_id, app_id, **kwargs)
+        result = await service.update_clone_voice(voice_id, user_id, app_id, **update_params)
         
         # 在数据库中更新信息
-        if name:
+        if name is not None:
             voice.name = name
-        if description:
+        if description is not None:
             voice.description = description
-            
+        
         db.commit()
         
         return result
@@ -429,25 +548,22 @@ async def synthesize_with_clone_voice(request: TTSCloneSynthesizeOSSRequest, db:
     
     try:
         # 生成对象键
-        object_key = request.object_key or f"tts/clone/{request.user_id}/{uuid.uuid4()}.{request.format or 'mp3'}"
+        object_key = request.object_key or f"tts/clone/{request.user_id}/{uuid.uuid4()}.mp3"
         
         # 合成语音并保存到OSS
         audio_url = await service.save_to_oss(
             text=request.text,
             voice_id=request.voice_id,
             object_key=object_key,
-            oss_provider=request.oss_provider,
-            format=request.format,
-            speed=request.speed,
-            volume=request.volume,
-            pitch=request.pitch
+            object_acl="public-read"
         )
         
+        # 构建响应
         return {
             "audio_url": audio_url,
-            "voice_id": request.voice_id,
             "text": request.text,
-            "format": request.format or "mp3"
+            "voice_id": request.voice_id,
+            "format": "mp3"
         }
     except Exception as e:
         logger.error(f"语音合成失败: {str(e)}", exc_info=True)

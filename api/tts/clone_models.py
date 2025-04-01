@@ -76,10 +76,6 @@ class TTSCloneSynthesizeRequest(BaseModel):
     user_id: str = Field(..., description="用户ID")
     app_id: str = Field(..., description="应用ID")
     service_name: str = Field("cosyvoice", description="服务名称")
-    format: Optional[str] = Field("mp3", description="音频格式")
-    speed: Optional[float] = Field(1.0, description="语速")
-    volume: Optional[float] = Field(1.0, description="音量")
-    pitch: Optional[float] = Field(1.0, description="音调")
 
 
 class TTSCloneSynthesizeOSSRequest(TTSCloneSynthesizeRequest):
