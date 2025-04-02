@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 # 导入TTS服务
 from ai_services.tts.volcengine_tts import register_volcengine_tts_service
+from ai_services.tts.cosyvoice_tts import register_cosyvoice_tts_service
 
 # 全局TTS服务注册表
 _tts_services = {}
@@ -28,6 +29,12 @@ def register_all_tts_services() -> Dict[str, Any]:
     if volcengine_service:
         _tts_services[volcengine_service.service_name] = volcengine_service
         logger.info(f"已注册TTS服务: {volcengine_service.service_name}")
+    
+    # 注册阿里云CosyVoice语音克隆服务
+    cosyvoice_service = register_cosyvoice_tts_service()
+    if cosyvoice_service:
+        _tts_services[cosyvoice_service.service_name] = cosyvoice_service
+        logger.info(f"已注册TTS服务: {cosyvoice_service.service_name}")
     
     # 在这里注册其他TTS服务
     # ...
