@@ -213,6 +213,7 @@ async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
         return {
             "request_id": str(uuid.uuid4()),
             "audio_url": audio_url,
+            "object_key": object_key,
             "content_type": f"audio/{request.encoding}",
             "service_name": request.service_name
         }
