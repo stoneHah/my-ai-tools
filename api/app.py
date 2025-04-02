@@ -19,6 +19,7 @@ from ai_services.asr.registry import register_all_asr_services
 from ai_services.tts.registry import register_all_tts_services
 from ai_services.storage.registry import register_all_storage_services
 from api.middleware.response import APIResponseMiddleware
+from api.middleware.request_logging import RequestLoggingMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -44,6 +45,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加请求日志中间件
+app.add_middleware(RequestLoggingMiddleware)
 
 # 添加响应中间件
 app.add_middleware(

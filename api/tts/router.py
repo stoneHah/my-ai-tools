@@ -3,12 +3,13 @@ TTS服务路由模块
 提供TTS相关的API端点
 """
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, Depends, Response
+from fastapi import APIRouter, HTTPException, Query, Depends, Response, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import uuid
 import os
 import logging
+import json
 
 from db.config import get_db
 from ai_services.tts.base import TTSServiceBase
@@ -178,35 +179,34 @@ async def list_tts_services_endpoint():
 
 
 @router.post("/synthesize", response_model=TTSSynthesizeResponse, summary="将文本合成为语音并保存到OSS")
-async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
+async def synthesize_text_to_oss(tts_request: TTSSynthesizeOSSRequest):
     """
     将文本合成为语音并保存到OSS
     
     Args:
-        request: TTS合成请求
+        tts_request: TTS合成请求
         
     Returns:
         TTSSynthesizeResponse: TTS合成响应
     """
     # 获取TTS服务
-    service: TTSServiceBase = get_tts_service(request.service_name)
+    service: TTSServiceBase = get_tts_service(tts_request.service_name)
     if not service:
-        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {request.service_name}")
+        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {tts_request.service_name}")
     
     try:
         # 生成对象键
-        object_key = request.object_key or f"tts/{uuid.uuid4()}.{request.format or 'mp3'}"
+        object_key = tts_request.object_key or f"tts/{uuid.uuid4()}.{tts_request.format or 'mp3'}"
         
         # 合成语音并保存到OSS
         audio_url = await service.save_to_oss(
-            text=request.text,
-            voice_id=request.voice_id,
+            text=tts_request.text,
+            voice_id=tts_request.voice_id,
             object_key=object_key,
-            # oss_provider=request.oss_provider,
-            speed=request.speed,
-            volume=request.volume,
-            pitch=request.pitch,
-            encoding=request.encoding
+            speed=tts_request.speed,
+            volume=tts_request.volume,
+            pitch=tts_request.pitch,
+            encoding=tts_request.encoding
         )
         
         # 构建响应
@@ -214,55 +214,53 @@ async def synthesize_text_to_oss(request: TTSSynthesizeOSSRequest):
             "request_id": str(uuid.uuid4()),
             "audio_url": audio_url,
             "object_key": object_key,
-            "content_type": f"audio/{request.encoding}",
-            "service_name": request.service_name
+            "content_type": f"audio/{tts_request.encoding}",
+            "service_name": tts_request.service_name
         }
     except Exception as e:
         logger.error(f"TTS合成并保存到OSS失败: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"TTS合成并保存到OSS失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/synthesize/stream", summary="将文本合成为语音（流式）")
-async def stream_synthesize_text(request: TTSSynthesizeRequest):
+async def stream_synthesize_text(tts_request: TTSSynthesizeRequest):
     """
     将文本合成为语音（流式）
     
     Args:
-        request: TTS合成请求
+        tts_request: TTS合成请求
         
     Returns:
         StreamingResponse: 流式音频响应
     """
     # 获取TTS服务
-    service = get_tts_service(request.service_name)
+    service = get_tts_service(tts_request.service_name)
     if not service:
-        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {request.service_name}")
+        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {tts_request.service_name}")
     
     try:
         # 创建流式生成器
         async def audio_generator():
             async for chunk in service.stream_synthesize(
-                text=request.text,
-                voice_id=request.voice_id,
-                speed=request.speed,
-                volume=request.volume,
-                pitch=request.pitch,
-                encoding=request.encoding
+                text=tts_request.text,
+                voice_id=tts_request.voice_id,
+                speed=tts_request.speed,
+                volume=tts_request.volume,
+                pitch=tts_request.pitch,
+                encoding=tts_request.encoding
             ):
                 yield chunk
         
         # 返回流式响应
-        content_type = f"audio/{request.encoding or 'mp3'}"
+        content_type = f"audio/{tts_request.encoding or 'mp3'}"
         return StreamingResponse(
             audio_generator(),
             media_type=content_type,
             headers={
                 "X-Request-ID": str(uuid.uuid4()),
-                "X-Service-Name": request.service_name
+                "X-Service-Name": tts_request.service_name
             }
         )
     except Exception as e:
         logger.error(f"流式TTS合成失败: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"流式TTS合成失败: {str(e)}")
-
-
