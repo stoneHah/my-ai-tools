@@ -561,6 +561,7 @@ async def synthesize_with_clone_voice(request: TTSCloneSynthesizeOSSRequest, db:
         # 构建响应
         return {
             "audio_url": audio_url,
+            "object_key": object_key,
             "text": request.text,
             "voice_id": request.voice_id,
             "format": "mp3"

@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, AsyncGenerator
 
 import dashscope
-from dashscope.audio.tts_v2 import SpeechSynthesizer
+from dashscope.audio.tts_v2 import SpeechSynthesizer,VoiceEnrollmentService
 from ai_services.storage.registry import get_storage_service
 
 from ai_services.tts.base import TTSServiceBase

@@ -17,6 +17,7 @@ class CloneVoiceRequest(BaseModel):
 class CloneVoiceResponse(BaseModel):
     """创建克隆音色响应"""
     task_id: str = Field(..., description="任务ID")
+    voice_id: str = Field(..., description="音色ID")
     status: str = Field(..., description="任务状态")
     message: str = Field(..., description="状态消息")
     user_id: str = Field(..., description="用户ID")
@@ -87,6 +88,7 @@ class TTSCloneSynthesizeOSSRequest(TTSCloneSynthesizeRequest):
 class TTSCloneSynthesizeResponse(BaseModel):
     """使用克隆音色合成语音响应"""
     audio_url: str = Field(..., description="音频URL")
+    object_key: str = Field(..., description="OSS对象键名/路径")
     voice_id: str = Field(..., description="音色ID")
     text: str = Field(..., description="合成的文本")
     format: str = Field(..., description="音频格式")
