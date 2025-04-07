@@ -76,7 +76,7 @@ class TTSCloneSynthesizeRequest(BaseModel):
     voice_id: str = Field(..., description="克隆音色ID")
     user_id: str = Field(..., description="用户ID")
     app_id: str = Field(..., description="应用ID")
-    service_name: str = Field("cosyvoice", description="服务名称")
+    service_name: Optional[str] = Field("cosyvoice", description="服务名称")
 
 
 class TTSCloneSynthesizeOSSRequest(TTSCloneSynthesizeRequest):

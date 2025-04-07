@@ -541,21 +541,27 @@ async def synthesize_with_clone_voice(request: TTSCloneSynthesizeOSSRequest, db:
     if not voice:
         raise HTTPException(status_code=404, detail=f"找不到克隆音色或无权访问: {request.voice_id}")
     
+    # 处理service_name为null的情况
+    service_name = request.service_name or "cosyvoice"
+    
     # 获取TTS服务
-    service: TTSServiceBase = get_tts_service(request.service_name)
+    service: TTSServiceBase = get_tts_service(service_name)
     if not service:
-        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {request.service_name}")
+        raise HTTPException(status_code=404, detail=f"找不到TTS服务: {service_name}")
     
     try:
         # 生成对象键
         object_key = request.object_key or f"tts/clone/{request.user_id}/{uuid.uuid4()}.mp3"
+        
+        # 处理oss_provider为null的情况
+        oss_provider = request.oss_provider or "aliyun"
         
         # 合成语音并保存到OSS
         audio_url = await service.save_to_oss(
             text=request.text,
             voice_id=request.voice_id,
             object_key=object_key,
-            object_acl="public-read"
+            oss_provider=oss_provider
         )
         
         # 构建响应
