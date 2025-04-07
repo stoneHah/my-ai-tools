@@ -122,36 +122,67 @@ async def extract_audio_from_video(request: ExtractAudioRequest):
                 
                 # 构建ffmpeg处理流程
                 logger.info(f"使用ffmpeg-python提取音频，格式: {request.format}, 编码器: {audio_codec}")
-                (
-                    ffmpeg
-                    .input(request.video_url)
-                    .output(str(audio_path), acodec=audio_codec, vn=None)
-                    .overwrite_output()
-                    .run(capture_stdout=True, capture_stderr=True)
+                try:
+                    (
+                        ffmpeg
+                        .input(request.video_url)
+                        .output(str(audio_path), acodec=audio_codec, vn=None)
+                        .overwrite_output()
+                        .run(capture_stdout=True, capture_stderr=True)
+                    )
+                    
+                    # 检查输出文件是否存在且大小不为0
+                    if not audio_path.exists() or audio_path.stat().st_size == 0:
+                        logger.warning(f"未能提取到音频: 输出文件不存在或为空")
+                        return ExtractAudioResponse(
+                            id=f"audio_{unique_id}",
+                            audio_url="",
+                            format=request.format,
+                            code="NO_AUDIO_STREAM",
+                            message="视频文件不包含任何音频流"
+                        )
+                    
+                    logger.info(f"音频提取成功: {audio_path}")
+                except ffmpeg.Error as e:
+                    error_message = e.stderr.decode() if hasattr(e, 'stderr') else str(e)
+                    logger.error(f"ffmpeg执行失败: {error_message}")
+                    
+                    # 检查是否是"Output file does not contain any stream"错误
+                    if "Output file does not contain any stream" in error_message:
+                        logger.warning("检测到视频没有音频流")
+                        return ExtractAudioResponse(
+                            id=f"audio_{unique_id}",
+                            audio_url="",
+                            format=request.format,
+                            code="NO_AUDIO_STREAM",
+                            message="视频文件不包含任何音频流"
+                        )
+                    else:
+                        # 其他ffmpeg错误
+                        raise HTTPException(status_code=500, detail=f"音频提取失败: {error_message}")
+                
+                # 上传到OSS
+                object_key = f"audio/{audio_filename}"
+                audio_url = await storage_service.upload_file(
+                    file_path=str(audio_path),
+                    object_key=object_key,
+                    content_type=f"audio/{request.format}"
                 )
                 
-                logger.info(f"音频提取成功: {audio_path}")
-            except ffmpeg.Error as e:
-                error_message = e.stderr.decode() if hasattr(e, 'stderr') else str(e)
-                logger.error(f"ffmpeg执行失败: {error_message}")
-                raise HTTPException(status_code=500, detail=f"音频提取失败: {error_message}")
-            
-            # 上传到OSS
-            object_key = f"audio/{audio_filename}"
-            audio_url = await storage_service.upload_file(
-                file_path=str(audio_path),
-                object_key=object_key,
-                content_type=f"audio/{request.format}"
-            )
-            
-            logger.info(f"音频提取完成并上传到OSS: {audio_url}")
-            
-            # 构建响应
-            return ExtractAudioResponse(
-                id=f"audio_{unique_id}",
-                audio_url=audio_url,
-                format=request.format
-            )
+                logger.info(f"音频提取完成并上传到OSS: {audio_url}")
+                
+                # 构建响应
+                return ExtractAudioResponse(
+                    id=f"audio_{unique_id}",
+                    audio_url=audio_url,
+                    object_key=object_key,
+                    format=request.format,
+                    code="SUCCESS",
+                    message="音频提取成功"
+                )
+            except Exception as e:
+                logger.error(f"从视频提取音频出错: {str(e)}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"从视频提取音频出错: {str(e)}")
             
         except Exception as e:
             logger.error(f"从视频提取音频出错: {str(e)}", exc_info=True)
