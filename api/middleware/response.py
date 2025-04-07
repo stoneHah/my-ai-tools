@@ -126,19 +126,55 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
             # 获取错误详情
             status_code = response.status_code
             error_detail = "请求处理失败"
+            error_data = None
             
             # 尝试从响应中获取更详细的错误信息
             try:
                 content = json.loads(response.body.decode())
-                if isinstance(content, dict) and "detail" in content:
-                    error_detail = content["detail"]
-            except:
-                pass
+                if isinstance(content, dict):
+                    # 优先使用detail字段
+                    if "detail" in content:
+                        error_detail = content["detail"]
+                    # 如果有message字段，使用message字段
+                    elif "message" in content:
+                        error_detail = content["message"]
+                    # 如果有error字段，使用error字段
+                    elif "error" in content:
+                        error_detail = content["error"]
+                    # 如果有错误描述字段，使用错误描述
+                    elif "error_description" in content:
+                        error_detail = content["error_description"]
+                    
+                    # 保留原始错误数据，以便客户端可以获取更多信息
+                    # 移除已经作为message使用的字段，避免重复
+                    error_content = content.copy()
+                    for field in ["detail", "message", "error", "error_description"]:
+                        if field in error_content and error_content[field] == error_detail:
+                            error_content.pop(field, None)
+                    
+                    # 如果还有其他错误信息，添加到data字段
+                    if error_content and error_content != {}:
+                        error_data = error_content
+            except Exception as e:
+                # 如果解析失败，记录错误但继续处理
+                logger.debug(f"解析错误响应内容失败: {str(e)}")
+                try:
+                    # 尝试直接获取响应体作为错误信息
+                    body_text = response.body.decode().strip()
+                    if body_text and body_text != "":
+                        error_detail = f"错误: {body_text}"
+                except:
+                    pass
+            
+            # 根据状态码添加更具体的错误类型描述
+            error_type = self._get_error_type_by_status(status_code)
+            if error_type and not error_detail.startswith(error_type):
+                error_detail = f"{error_type}: {error_detail}"
             
             # 创建包装的错误响应
             wrapped = {
                 "code": status_code,
-                "data": None,
+                "data": error_data,
                 "message": error_detail
             }
             
@@ -156,7 +192,28 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
             logger.error(f"包装错误响应失败: {str(e)}", exc_info=True)
             # 如果包装失败，返回原始响应
             return response
-
+    
+    def _get_error_type_by_status(self, status_code: int) -> str:
+        """根据HTTP状态码获取错误类型描述"""
+        error_types = {
+            400: "请求参数错误",
+            401: "未授权访问",
+            403: "禁止访问",
+            404: "资源不存在",
+            405: "方法不允许",
+            408: "请求超时",
+            409: "资源冲突",
+            413: "请求体过大",
+            415: "不支持的媒体类型",
+            422: "请求数据验证失败",
+            429: "请求过于频繁",
+            500: "服务器内部错误",
+            501: "功能未实现",
+            502: "网关错误",
+            503: "服务不可用",
+            504: "网关超时"
+        }
+        return error_types.get(status_code, "")
 
 # 便捷函数，用于创建API响应
 def api_response(
