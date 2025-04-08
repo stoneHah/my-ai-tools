@@ -30,10 +30,9 @@ class BusinessExceptionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         except BusinessException as e:
             # 捕获业务异常
-            logger.error(
-                f"业务异常: {e.message} [错误码: {e.code}]",
-                exc_info=True
-            )
+            error_msg = f"业务异常: {e.message} [错误码: {e.code}]"
+            logger.error(error_msg)
+            print(f"业务异常日志: {error_msg}")  # 直接打印到控制台确保可见
             
             # 返回业务异常响应，HTTP状态码固定为200
             return JSONResponse(
@@ -42,10 +41,9 @@ class BusinessExceptionMiddleware(BaseHTTPMiddleware):
             )
         except StarletteHTTPException as e:
             # 捕获HTTP异常但不转换为业务异常
-            logger.error(
-                f"HTTP异常: {e.detail} [状态码: {e.status_code}]",
-                exc_info=True
-            )
+            error_msg = f"HTTP异常: {e.detail} [状态码: {e.status_code}]"
+            logger.error(error_msg)
+            print(f"HTTP异常日志: {error_msg}")  # 直接打印到控制台确保可见
             
             # 直接返回HTTP异常，保持原有状态码
             return JSONResponse(
@@ -58,13 +56,13 @@ class BusinessExceptionMiddleware(BaseHTTPMiddleware):
             )
         except Exception as e:
             # 捕获其他未处理的异常（系统级异常）
-            logger.error(
-                f"系统异常: {str(e)}",
-                exc_info=True
-            )
+            error_msg = f"系统异常: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            print(f"系统异常日志: {error_msg}")  # 直接打印到控制台确保可见
             
             # 获取异常堆栈信息
             stack_trace = traceback.format_exc()
+            print(f"异常堆栈: {stack_trace}")  # 打印堆栈信息
             
             # 系统级异常使用HTTP 500状态码
             return JSONResponse(

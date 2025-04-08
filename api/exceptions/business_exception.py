@@ -107,6 +107,9 @@ class ErrorCode:
     EXTERNAL_SERVICE_UNAVAILABLE = 6001
     EXTERNAL_REQUEST_ERROR = 6002
     EXTERNAL_RESPONSE_ERROR = 6003
+    
+    # 媒体处理错误 (7000-7999)
+    MEDIA_PROCESSING_ERROR = 7000
 
 
 # 常用业务异常类
@@ -187,22 +190,21 @@ class StorageError(BusinessException):
         )
 
 
-class DatabaseError(BusinessException):
-    """数据库错误异常"""
-    def __init__(self, message: str = "数据库错误", data: Any = None, exception: Exception = None):
-        super().__init__(
-            code=ErrorCode.DB_ERROR,
-            message=message,
-            data=data,
-            exception=exception
-        )
-
-
 class ExternalServiceError(BusinessException):
     """外部服务错误异常"""
     def __init__(self, message: str = "外部服务错误", data: Any = None, exception: Exception = None):
         super().__init__(
             code=ErrorCode.EXTERNAL_SERVICE_ERROR,
+            message=message,
+            data=data,
+            exception=exception
+        )
+
+class MediaProcessingError(BusinessException):
+    """媒体处理错误异常"""
+    def __init__(self, message: str = "媒体处理错误", data: Any = None, exception: Exception = None):
+        super().__init__(
+            code=ErrorCode.MEDIA_PROCESSING_ERROR,
             message=message,
             data=data,
             exception=exception

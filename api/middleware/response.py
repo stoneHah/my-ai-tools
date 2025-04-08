@@ -85,6 +85,17 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
                 # 解析并包装响应
                 try:
                     data = json.loads(body.decode())
+                    
+                    # 检查是否已经是业务异常响应格式（包含code和message字段）
+                    if isinstance(data, dict) and "code" in data and "message" in data:
+                        # 已经是统一格式的响应，直接返回
+                        return JSONResponse(
+                            content=data,
+                            status_code=response.status_code,
+                            headers=dict(response.headers)
+                        )
+                    
+                    # 常规响应包装
                     wrapped = {
                         "code": response.status_code,
                         "data": data,

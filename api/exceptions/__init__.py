@@ -11,8 +11,8 @@ from api.exceptions.business_exception import (
     ValidationError,
     AIServiceError,
     StorageError,
-    DatabaseError,
-    ExternalServiceError
+    ExternalServiceError,
+    MediaProcessingError
 )
 
 __all__ = [
@@ -25,6 +25,6 @@ __all__ = [
     "ValidationError",
     "AIServiceError",
     "StorageError",
-    "DatabaseError",
-    "ExternalServiceError"
+    "ExternalServiceError",
+    "MediaProcessingError"
 ]
