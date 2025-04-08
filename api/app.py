@@ -22,6 +22,7 @@ from ai_services.tts.clone_registry import register_all_voice_clone_services
 from ai_services.storage.registry import register_all_storage_services
 from api.middleware.response import APIResponseMiddleware
 from api.middleware.request_logging import RequestLoggingMiddleware
+from api.middleware.exception_handler import BusinessExceptionMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -47,6 +48,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 添加业务异常处理中间件（必须放在最外层，优先捕获异常）
+app.add_middleware(BusinessExceptionMiddleware)
 
 # 添加请求日志中间件
 app.add_middleware(RequestLoggingMiddleware)

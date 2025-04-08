@@ -65,6 +65,8 @@ class SimpleVoiceResponse(BaseModel):
     name: str
     gender: Optional[str] = None
     description: Optional[str] = None
+    avatar_url: Optional[str] = None
+    sample_audio_url: Optional[str] = None
     
     class Config:
         orm_mode = True
