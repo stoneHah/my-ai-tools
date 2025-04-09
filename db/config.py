@@ -46,3 +46,21 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# 初始化数据库
+def init_db():
+    """
+    初始化数据库
+    
+    创建所有表并确保数据库结构是最新的
+    """
+    from db.models.base import Base
+    
+    try:
+        # 创建所有表
+        Base.metadata.create_all(bind=engine)
+        logging.info("数据库初始化完成")
+    except Exception as e:
+        logging.error(f"数据库初始化失败: {str(e)}")
+        raise

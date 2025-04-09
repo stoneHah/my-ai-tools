@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api.exceptions.business_exception import BusinessException
+from common.exceptions import BusinessException
 
 logger = logging.getLogger(__name__)
 

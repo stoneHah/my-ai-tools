@@ -17,7 +17,7 @@ import ffmpeg
 from .models import VideoUrlRequest, VideoUrlResponse, ExtractAudioRequest, ExtractAudioResponse
 from ai_services.base import AIServiceRegistry
 from ai_services.storage.registry import get_storage_service
-from api.exceptions.business_exception import NotFoundError, MediaProcessingError
+from common.exceptions import NotFoundError, MediaProcessingError
 
 # 设置日志记录器
 logger = logging.getLogger(__name__)
