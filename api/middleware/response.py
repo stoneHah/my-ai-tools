@@ -9,6 +9,7 @@ from typing import Callable, Dict, Any, Union
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from config import API_SUCCESS_CODE
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
             # 如果响应为空，返回空数据
             if not body:
                 wrapped = {
-                    "code": response.status_code,
+                    "code": API_SUCCESS_CODE,
                     "data": None,
                     "message": "成功"
                 }
@@ -97,7 +98,7 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
                     
                     # 常规响应包装
                     wrapped = {
-                        "code": response.status_code,
+                        "code": API_SUCCESS_CODE,
                         "data": data,
                         "message": "成功"
                     }

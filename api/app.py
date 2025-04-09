@@ -9,10 +9,19 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import ResponseValidationError
 
+from api.ai.router import router as ai_router
 from api.image.router import router as image_router
+from api.media.router import router as media_router
+from api.asr.router import router as asr_router
+from api.tts.router import router as tts_router
+from api.tts.clone_router import router as tts_clone_router
+
 from db.service.task_service import TaskService
 from db.config import get_db, init_db
 from common.exceptions import BusinessException
+from api.middleware.response import APIResponseMiddleware
+from api.middleware.exception_handler import BusinessExceptionMiddleware
+from api.middleware.request_logging import RequestLoggingMiddleware
 
 # 配置日志
 logging.basicConfig(
@@ -36,6 +45,27 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# 添加业务异常处理中间件（必须放在最外层，优先捕获异常）
+app.add_middleware(BusinessExceptionMiddleware)
+
+# 添加请求日志中间件
+app.add_middleware(RequestLoggingMiddleware)
+
+# 添加响应中间件
+app.add_middleware(
+    APIResponseMiddleware,
+    exclude_paths=["/docs", "/redoc", "/openapi.json", "/tts/synthesize/stream"],
+    exclude_content_types=["application/octet-stream", "audio/", "video/", "image/"]
+)
+
+
+# 添加响应中间件
+app.add_middleware(
+    APIResponseMiddleware,
+    exclude_paths=["/docs", "/redoc", "/openapi.json"],
+    exclude_content_types=["application/octet-stream", "audio/", "video/", "image/", "multipart/form-data"]
 )
 
 # 全局任务服务实例
@@ -64,7 +94,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         return JSONResponse(
             status_code=status.HTTP_200_OK,  # 使用200状态码，保持与业务异常一致
             content={
-                "code": "SYSTEM_ERROR",
+                "code": ErrorCode.GENERAL_ERROR,
                 "message": f"系统错误: {str(exc)}",
                 "data": {
                     "error_type": type(exc).__name__,
@@ -140,6 +170,11 @@ async def shutdown_event():
 
 
 # 注册路由
+app.include_router(ai_router)
+app.include_router(media_router)
+app.include_router(asr_router)
+app.include_router(tts_router)
+app.include_router(tts_clone_router)
 app.include_router(image_router)
 
 

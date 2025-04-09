@@ -11,7 +11,7 @@ class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., description="图像生成提示词")
     aspect_ratio: Optional[str] = Field("1:1", description="图像宽高比，如'1:1', '16:9'等")
     model: Optional[str] = Field(None, description="使用的模型名称")
-    num_images: Optional[int] = Field(1, description="生成图像的数量，默认为1")
+    num_images: Optional[int] = Field(default_factory=lambda: 1, description="生成图像的数量，默认为1")
     parameters: Optional[Dict[str, Any]] = Field(None, description="额外参数")
 
 

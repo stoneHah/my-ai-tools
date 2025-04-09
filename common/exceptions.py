@@ -59,27 +59,24 @@ class BusinessException(Exception):
     """业务异常基类"""
     
     def __init__(self, 
-                code: str = None, 
+                code: int = None,
                 message: str = None,
                 details: Optional[Dict[str, Any]] = None,
-                error_code: int = None,
                 data: Any = None,
                 exception: Exception = None):
         """
         初始化业务异常
         
         Args:
-            code: 错误代码字符串
+            code: 错误代码数字，定义在ErrorCode类中
             message: 错误消息
             details: 错误详情
-            error_code: 错误代码数字（兼容旧版）
-            data: 附加错误数据（兼容旧版）
-            exception: 原始异常对象（兼容旧版）
+            data: 附加错误数据
+            exception: 原始异常对象
         """
-        self.code = code or "BUSINESS_ERROR"
+        self.code = code or ErrorCode.GENERAL_ERROR
         self.message = message or "业务异常"
         self.details = details or {}
-        self.error_code = error_code or ErrorCode.GENERAL_ERROR
         self.data = data
         self.exception = exception
         
@@ -90,7 +87,7 @@ class BusinessException(Exception):
                 "message": str(exception)
             }
         
-        # 如果有旧版data，添加到details中
+        # 如果有data，添加到details中
         if data is not None and "data" not in self.details:
             self.details["data"] = data
             
@@ -107,16 +104,9 @@ class BusinessException(Exception):
         result = {
             "code": self.code,
             "message": self.message,
-            "details": self.details
+            "data": self.details
         }
         
-        # 兼容旧版格式
-        if hasattr(self, 'error_code') and self.error_code is not None:
-            result["error_code"] = self.error_code
-            
-        if hasattr(self, 'data') and self.data is not None:
-            result["data"] = self.data
-            
         return result
 
 
@@ -147,10 +137,9 @@ class ResourceNotFoundException(BusinessException):
         })
         
         super().__init__(
-            code="RESOURCE_NOT_FOUND",
+            code=ErrorCode.NOT_FOUND,
             message=message,
-            details=error_details,
-            error_code=ErrorCode.NOT_FOUND
+            details=error_details
         )
 
 
@@ -181,10 +170,9 @@ class InvalidParameterException(BusinessException):
             error_details["value"] = str(value)
         
         super().__init__(
-            code="INVALID_PARAMETER",
+            code=ErrorCode.PARAM_ERROR,
             message=f"Parameter '{parameter}' is invalid: {reason}",
-            details=error_details,
-            error_code=ErrorCode.PARAM_ERROR
+            details=error_details
         )
 
 
@@ -210,10 +198,9 @@ class ServiceUnavailableException(BusinessException):
         })
         
         super().__init__(
-            code="SERVICE_UNAVAILABLE",
+            code=ErrorCode.AI_SERVICE_UNAVAILABLE,
             message=f"Service '{service_name}' is unavailable: {reason}",
-            details=error_details,
-            error_code=ErrorCode.AI_SERVICE_UNAVAILABLE
+            details=error_details
         )
 
 
@@ -239,10 +226,9 @@ class TaskFailedException(BusinessException):
         })
         
         super().__init__(
-            code="TASK_FAILED",
+            code=ErrorCode.TASK_FAILED,
             message=f"Task '{task_id}' failed: {reason}",
-            details=error_details,
-            error_code=ErrorCode.TASK_FAILED
+            details=error_details
         )
 
 
@@ -251,11 +237,10 @@ class ParameterError(BusinessException):
     """参数错误异常"""
     def __init__(self, message: str = "参数错误", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="PARAM_ERROR",
+            code=ErrorCode.PARAM_ERROR,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.PARAM_ERROR
+            exception=exception
         )
 
 
@@ -263,11 +248,10 @@ class NotFoundError(BusinessException):
     """资源不存在异常"""
     def __init__(self, message: str = "资源不存在", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="NOT_FOUND",
+            code=ErrorCode.NOT_FOUND,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.NOT_FOUND
+            exception=exception
         )
 
 
@@ -275,11 +259,10 @@ class UnauthorizedError(BusinessException):
     """未授权异常"""
     def __init__(self, message: str = "未授权访问", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="UNAUTHORIZED",
+            code=ErrorCode.UNAUTHORIZED,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.UNAUTHORIZED
+            exception=exception
         )
 
 
@@ -287,11 +270,10 @@ class ForbiddenError(BusinessException):
     """禁止访问异常"""
     def __init__(self, message: str = "禁止访问", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="FORBIDDEN",
+            code=ErrorCode.FORBIDDEN,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.FORBIDDEN
+            exception=exception
         )
 
 
@@ -299,11 +281,10 @@ class ValidationError(BusinessException):
     """数据验证错误异常"""
     def __init__(self, message: str = "数据验证失败", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="VALIDATION_ERROR",
+            code=ErrorCode.VALIDATION_ERROR,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.VALIDATION_ERROR
+            exception=exception
         )
 
 
@@ -311,11 +292,10 @@ class AIServiceError(BusinessException):
     """AI服务错误异常"""
     def __init__(self, message: str = "AI服务错误", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="AI_SERVICE_ERROR",
+            code=ErrorCode.AI_SERVICE_ERROR,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.AI_SERVICE_ERROR
+            exception=exception
         )
 
 
@@ -323,11 +303,10 @@ class StorageError(BusinessException):
     """存储服务错误异常"""
     def __init__(self, message: str = "存储服务错误", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="STORAGE_ERROR",
+            code=ErrorCode.STORAGE_ERROR,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.STORAGE_ERROR
+            exception=exception
         )
 
 
@@ -335,11 +314,10 @@ class ExternalServiceError(BusinessException):
     """外部服务错误异常"""
     def __init__(self, message: str = "外部服务错误", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="EXTERNAL_SERVICE_ERROR",
+            code=ErrorCode.EXTERNAL_SERVICE_ERROR,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.EXTERNAL_SERVICE_ERROR
+            exception=exception
         )
 
 
@@ -347,9 +325,8 @@ class MediaProcessingError(BusinessException):
     """媒体处理错误异常"""
     def __init__(self, message: str = "媒体处理错误", data: Any = None, exception: Exception = None):
         super().__init__(
-            code="MEDIA_PROCESSING_ERROR",
+            code=ErrorCode.MEDIA_PROCESSING_ERROR,
             message=message,
             data=data,
-            exception=exception,
-            error_code=ErrorCode.MEDIA_PROCESSING_ERROR
+            exception=exception
         )
