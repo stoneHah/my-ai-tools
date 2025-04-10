@@ -47,8 +47,6 @@ class TaskDAO(BaseDAO[Task]):
             task_specific_data=task_specific_data
         )
         db.add(task)
-        db.commit()
-        db.refresh(task)
         return task
     
     @staticmethod
@@ -110,8 +108,6 @@ class TaskDAO(BaseDAO[Task]):
         if status == "completed" or status == "failed" or status == "error":
             task.completed_at = datetime.now()
         
-        db.commit()
-        db.refresh(task)
         return task
     
     @staticmethod
@@ -167,5 +163,4 @@ class TaskDAO(BaseDAO[Task]):
             return False
         
         db.delete(task)
-        db.commit()
         return True

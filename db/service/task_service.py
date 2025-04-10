@@ -44,6 +44,7 @@ class TaskService:
         Returns:
             创建的任务
         """
+        task = None
         with transaction(self.db):
             task = TaskDAO.create_task(
                 db=self.db,
@@ -53,9 +54,10 @@ class TaskService:
                 parameters=parameters,
                 task_specific_data=task_specific_data
             )
-            # 提交后刷新实例
-            self.db.refresh(task)
-            return task
+        
+        # 事务提交后刷新实例
+        self.db.refresh(task)
+        return task
     
     def get_task(self, task_id: str) -> Optional[Task]:
         """
@@ -90,6 +92,7 @@ class TaskService:
         Returns:
             更新后的任务，如果任务不存在则返回None
         """
+        task = None
         with transaction(self.db):
             task = TaskDAO.update_task_status(
                 db=self.db,
@@ -99,9 +102,10 @@ class TaskService:
                 error_message=error_message,
                 task_specific_data=task_specific_data
             )
-            if task:
-                self.db.refresh(task)
-            return task
+        
+        if task:
+            self.db.refresh(task)
+        return task
     
     def list_tasks(
         self,
@@ -143,5 +147,7 @@ class TaskService:
         Returns:
             是否删除成功
         """
+        result = False
         with transaction(self.db):
-            return TaskDAO.delete_task(db=self.db, task_id=task_id)
+            result = TaskDAO.delete_task(db=self.db, task_id=task_id)
+        return result
