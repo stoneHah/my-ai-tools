@@ -20,3 +20,61 @@ You are a professional Python AI toolkit architect, focused on building modular,
 - Business-level exceptions: use BusinessException or a subclass
 - System-level exceptions: use standard HTTP status codes (500/502, etc.)
 - Business-level exceptions: use HTTP 200, with code/message to distinguish business failure and success
+
+## Directory Structure
+my-ai-tools
+├── .env                 # 存储环境变量配置，如 API 密钥等 (通常不提交到版本库)
+├── .env.example         # .env 文件的示例，指导如何配置环境变量
+├── .git/                # Git 版本控制目录
+├── .gitignore           # Git 忽略文件配置
+├── .idea/               # JetBrains IDE (如 PyCharm) 的项目配置目录
+├── .pytest_cache/       # Pytest 测试框架的缓存目录
+├── .venv/               # Python 虚拟环境目录
+├── .vscode/             # VS Code 编辑器的配置目录
+├── .windsurfrules       # Codeium 相关配置文件
+├── README.md            # 项目说明文档
+├── __pycache__/         # Python 编译的字节码缓存目录
+├── ai_services/         # 【核心】AI 服务实现层
+│   ├── __init__.py
+│   ├── base/            # AI 服务抽象基类定义
+│   ├── chat/            # 聊天类 AI 服务实现 (如 Coze)
+│   ├── asr/             # 语音识别 (ASR) 服务实现
+│   ├── tts/             # 语音合成 (TTS) 服务实现 (如 Volcengine)
+│   ├── voice_clone/     # 语音克隆服务实现 (如 CosyVoice)
+│   ├── image/           # 图像生成服务实现
+│   ├── storage/         # 存储服务实现 (如 OSS)
+│   └── workflow/        # 工作流类 AI 服务实现
+├── api/                 # 【核心】API 接口层 (FastAPI 应用)
+│   ├── __init__.py
+│   ├── app.py           # FastAPI 应用主入口
+│   ├── routers/         # API 路由定义 (按服务类型组织)
+│   │   ├── chat.py
+│   │   ├── asr.py
+│   │   ├── tts.py
+│   │   ├── voice_clone.py
+│   │   ├── image.py
+│   │   └── ...
+│   ├── schemas/         # Pydantic 数据模型 (请求/响应体定义)
+│   ├── dependencies.py  # FastAPI 依赖项注入
+│   └── utils.py         # API 层相关的工具函数
+├── common/              # 公共组件或工具类
+│   ├── __init__.py
+│   ├── exceptions.py    # 自定义异常类
+│   └── utils.py         # 通用工具函数
+├── config.py            # 全局配置加载入口 (可能已废弃或简化)
+├── db/                  # 【核心】数据库交互层
+│   ├── __init__.py
+│   ├── base.py          # SQLAlchemy 基础配置 (如 Base, session)
+│   ├── models/          # SQLAlchemy ORM 模型定义
+│   ├── dao/             # 数据访问对象 (Data Access Object)，封装数据库操作
+│   └── service/         # 数据库服务层 (可选，封装更复杂的业务逻辑)
+├── requirements.txt     # Python 依赖包列表
+├── result.json          # 某个操作的结果输出文件 (临时或测试用)
+├── run_api.py           # 启动 API 服务的脚本
+├── scripts/             # 辅助脚本目录 (如数据初始化、部署脚本等)
+├── setup.py             # 项目打包配置文件 (Setuptools)
+├── sql/                 # SQL 脚本目录 (如数据库初始化、迁移脚本)
+├── temp/                # 临时文件存储目录
+├── test_query.mp3       # 测试用的音频文件
+├── tests/               # 单元测试和集成测试目录
+└── 火山-豆包语音大模型音色列表_带头像.xlsx # 外部数据文件 (音色列表)
