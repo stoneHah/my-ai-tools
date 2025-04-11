@@ -2,7 +2,7 @@
 任务数据访问对象
 """
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -64,7 +64,7 @@ class TaskDAO(BaseDAO[Task]):
         return TaskDAO.get_by_id(db, Task, "task_id", task_id)
     
     @staticmethod
-    def update_task_status(
+    def update_task(
         db: Session,
         task_id: str,
         status: str,
@@ -115,7 +115,7 @@ class TaskDAO(BaseDAO[Task]):
         db: Session,
         service_type: Optional[str] = None,
         service_name: Optional[str] = None,
-        status: Optional[str] = None,
+        status: Optional[Union[str, List[str]]] = None,
         skip: int = 0,
         limit: int = 100
     ) -> List[Task]:
@@ -126,7 +126,7 @@ class TaskDAO(BaseDAO[Task]):
             db: 数据库会话
             service_type: 服务类型过滤
             service_name: 服务名称过滤
-            status: 状态过滤
+            status: 状态过滤，可以是单个状态字符串或状态列表
             skip: 跳过记录数
             limit: 返回记录数限制
             
@@ -142,7 +142,10 @@ class TaskDAO(BaseDAO[Task]):
             query = query.filter(Task.service_name == service_name)
         
         if status:
-            query = query.filter(Task.status == status)
+            if isinstance(status, list):
+                query = query.filter(Task.status.in_(status))
+            else:
+                query = query.filter(Task.status == status)
         
         return query.order_by(desc(Task.created_at)).offset(skip).limit(limit).all()
     

@@ -71,7 +71,7 @@ class TaskService:
         """
         return TaskDAO.get_task_by_id(db=self.db, task_id=task_id)
     
-    def update_task_status(
+    def update_task(
         self,
         task_id: str,
         status: str,
@@ -94,7 +94,7 @@ class TaskService:
         """
         task = None
         with transaction(self.db):
-            task = TaskDAO.update_task_status(
+            task = TaskDAO.update_task(
                 db=self.db,
                 task_id=task_id,
                 status=status,

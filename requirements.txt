@@ -9,3 +9,4 @@ oss2
 pytest
 pytest-asyncio
 ffmpeg-python
+volcengine-python-sdk[ark]

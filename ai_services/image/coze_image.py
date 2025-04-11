@@ -245,7 +245,7 @@ class CozeImageService(ImageGenerationServiceBase):
             # 更新数据库中的任务状态
             if self.task_service:
                 try:
-                    self.task_service.update_task_status(
+                    self.task_service.update_task(
                         task_id=task_id,
                         status="error",
                         error_message=error_msg
@@ -267,7 +267,7 @@ class CozeImageService(ImageGenerationServiceBase):
             # 更新数据库中的任务状态
             if self.task_service:
                 try:
-                    self.task_service.update_task_status(
+                    self.task_service.update_task(
                         task_id=task_id,
                         status="failed",
                         error_message=error_message
@@ -286,7 +286,7 @@ class CozeImageService(ImageGenerationServiceBase):
             # 更新数据库中的任务状态
             if self.task_service:
                 try:
-                    self.task_service.update_task_status(
+                    self.task_service.update_task(
                         task_id=task_id,
                         status="running"
                     )
@@ -327,7 +327,7 @@ class CozeImageService(ImageGenerationServiceBase):
             # 更新数据库中的任务状态
             if self.task_service:
                 try:
-                    self.task_service.update_task_status(
+                    self.task_service.update_task(
                         task_id=task_id,
                         status="completed",
                         result=result

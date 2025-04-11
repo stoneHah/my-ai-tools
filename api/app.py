@@ -15,6 +15,7 @@ from api.media.router import router as media_router
 from api.asr.router import router as asr_router
 from api.tts.router import router as tts_router
 from api.tts.clone_router import router as tts_clone_router
+from api.video.router import router as video_router
 
 from db.service.task_service import TaskService
 from db.config import get_db, init_db
@@ -22,6 +23,7 @@ from common.exceptions import BusinessException
 from api.middleware.response import APIResponseMiddleware
 from api.middleware.exception_handler import BusinessExceptionMiddleware
 from api.middleware.request_logging import RequestLoggingMiddleware
+from scripts.task_scheduler import TaskScheduler
 
 # 配置日志
 logging.basicConfig(
@@ -70,6 +72,8 @@ app.add_middleware(
 
 # 全局任务服务实例
 _task_service: Optional[TaskService] = None
+# 全局任务调度器实例
+_task_scheduler: Optional[TaskScheduler] = None
 
 
 @app.exception_handler(Exception)
@@ -115,6 +119,8 @@ async def startup_event():
     """
     应用启动事件
     """
+    global _task_service, _task_scheduler
+    
     logger.info("应用启动")
     
     # 初始化数据库
@@ -122,6 +128,7 @@ async def startup_event():
     
     # 创建任务服务实例
     task_service = TaskService(next(get_db()))
+    _task_service = task_service
     
     # 注册所有服务
     logger.info("正在注册AI服务...")
@@ -158,7 +165,17 @@ async def startup_event():
     from ai_services.storage.registry import register_all_storage_services
     register_all_storage_services()
     
+    # 注册视频生成服务
+    from ai_services.video.registry import register_all_video_services
+    register_all_video_services(task_service)
+    
     logger.info("所有服务注册完成")
+    
+    # 启动任务调度器
+    logger.info("正在启动任务调度器...")
+    _task_scheduler = TaskScheduler(interval=60)  # 每60秒检查一次任务状态
+    _task_scheduler.start()
+    logger.info("任务调度器已启动")
 
 
 @app.on_event("shutdown")
@@ -166,16 +183,25 @@ async def shutdown_event():
     """
     应用关闭事件
     """
+    global _task_scheduler
+    
+    # 停止任务调度器
+    if _task_scheduler:
+        logger.info("正在停止任务调度器...")
+        _task_scheduler.stop()
+        logger.info("任务调度器已停止")
+    
     logger.info("应用关闭")
 
 
 # 注册路由
-app.include_router(ai_router)
-app.include_router(media_router)
-app.include_router(asr_router)
-app.include_router(tts_router)
-app.include_router(tts_clone_router)
-app.include_router(image_router)
+# app.include_router(ai_router)
+# app.include_router(media_router)
+# app.include_router(asr_router)
+# app.include_router(tts_router)
+# app.include_router(tts_clone_router)
+# app.include_router(image_router)
+app.include_router(video_router)
 
 
 @app.get("/")
