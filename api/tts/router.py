@@ -201,7 +201,7 @@ async def synthesize_text_to_oss(tts_request: TTSSynthesizeOSSRequest):
         object_key = tts_request.object_key or f"tts/{uuid.uuid4()}.{tts_request.format or 'mp3'}"
         
         # 合成语音并保存到OSS
-        audio_url = await service.save_to_oss(
+        audio_url, audio_duration = await service.save_to_oss(
             text=tts_request.text,
             voice_id=tts_request.voice_id,
             object_key=object_key,
@@ -217,7 +217,8 @@ async def synthesize_text_to_oss(tts_request: TTSSynthesizeOSSRequest):
             "audio_url": audio_url,
             "object_key": object_key,
             "content_type": f"audio/{tts_request.encoding}",
-            "service_name": tts_request.service_name
+            "service_name": tts_request.service_name,
+            "duration": audio_duration  # 添加音频时长信息
         }
     except Exception as e:
         logger.error(f"TTS合成并保存到OSS失败: {str(e)}", exc_info=True)

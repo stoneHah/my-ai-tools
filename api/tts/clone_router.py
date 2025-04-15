@@ -557,7 +557,7 @@ async def synthesize_with_clone_voice(request: TTSCloneSynthesizeOSSRequest, db:
         oss_provider = request.oss_provider or "aliyun"
         
         # 合成语音并保存到OSS
-        audio_url = await service.save_to_oss(
+        audio_url, audio_duration = await service.save_to_oss(
             text=request.text,
             voice_id=request.voice_id,
             object_key=object_key,
@@ -570,7 +570,8 @@ async def synthesize_with_clone_voice(request: TTSCloneSynthesizeOSSRequest, db:
             "object_key": object_key,
             "text": request.text,
             "voice_id": request.voice_id,
-            "format": "mp3"
+            "format": "mp3",
+            "duration": audio_duration
         }
     except Exception as e:
         logger.error(f"语音合成失败: {str(e)}", exc_info=True)

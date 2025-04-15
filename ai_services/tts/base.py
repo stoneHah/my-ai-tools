@@ -3,7 +3,7 @@
 定义了语音合成服务的通用接口
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, AsyncGenerator, BinaryIO, Union
+from typing import Dict, Any, Optional, AsyncGenerator, BinaryIO, Union, Tuple
 
 
 class TTSServiceBase(ABC):
@@ -68,7 +68,7 @@ class TTSServiceBase(ABC):
         pass
     
     @abstractmethod
-    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> str:
+    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> Tuple[str, float]:
         """
         将文本合成为语音并保存到对象存储服务(OSS)
         
@@ -80,6 +80,6 @@ class TTSServiceBase(ABC):
             **kwargs: 其他参数，如速度、音量、音调等
             
         Returns:
-            OSS中的对象URL
+            (OSS中的对象URL, 音频时长(秒))
         """
         pass

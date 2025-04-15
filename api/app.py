@@ -195,12 +195,12 @@ async def shutdown_event():
 
 
 # 注册路由
-# app.include_router(ai_router)
-# app.include_router(media_router)
-# app.include_router(asr_router)
-# app.include_router(tts_router)
-# app.include_router(tts_clone_router)
-# app.include_router(image_router)
+app.include_router(ai_router)
+app.include_router(media_router)
+app.include_router(asr_router)
+app.include_router(tts_router)
+app.include_router(tts_clone_router)
+app.include_router(image_router)
 app.include_router(video_router)
 
 

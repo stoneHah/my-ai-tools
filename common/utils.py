@@ -84,3 +84,90 @@ async def download_file_content(url: str, timeout: int = 60) -> bytes:
             message=f"下载文件超时，请稍后重试",
             data={"url": url}
         )
+
+
+def get_audio_duration(file_path: str) -> float:
+    """
+    获取音频文件的时长（秒）
+    
+    Args:
+        file_path: 音频文件路径
+        
+    Returns:
+        音频时长（秒）
+    """
+    try:
+        from pydub import AudioSegment
+        audio = AudioSegment.from_file(file_path)
+        duration_seconds = len(audio) / 1000.0  # pydub以毫秒为单位
+        return duration_seconds
+    except Exception as e:
+        logger.error(f"获取音频时长失败: {str(e)}", exc_info=True)
+        raise BusinessException(
+            message=f"获取音频时长失败: {str(e)}",
+            data={"file_path": file_path}
+        )
+
+
+async def get_audio_duration_async(file_path: str) -> float:
+    """
+    异步获取音频文件的时长（秒）
+    
+    Args:
+        file_path: 音频文件路径
+        
+    Returns:
+        音频时长（秒）
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, get_audio_duration, file_path)
+
+
+def get_audio_duration_from_bytes(audio_data: bytes, format: str = "mp3") -> float:
+    """
+    从二进制音频数据获取时长（秒）
+    
+    Args:
+        audio_data: 音频二进制数据
+        format: 音频格式，如mp3、wav等
+        
+    Returns:
+        音频时长（秒）
+    """
+    import tempfile
+    import os
+    
+    temp_file_path = None
+    try:
+        # 创建临时文件
+        with tempfile.NamedTemporaryFile(suffix=f".{format}", delete=False) as temp_file:
+            temp_file_path = temp_file.name
+            temp_file.write(audio_data)
+        
+        # 获取音频时长
+        return get_audio_duration(temp_file_path)
+    except Exception as e:
+        logger.error(f"获取音频时长失败: {str(e)}", exc_info=True)
+        return 0.0
+    finally:
+        # 删除临时文件
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.warning(f"删除临时文件失败: {str(e)}")
+
+
+async def get_audio_duration_from_bytes_async(audio_data: bytes, format: str = "mp3") -> float:
+    """
+    异步从二进制音频数据获取时长（秒）
+    
+    Args:
+        audio_data: 音频二进制数据
+        format: 音频格式，如mp3、wav等
+        
+    Returns:
+        音频时长（秒）
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, get_audio_duration_from_bytes, audio_data, format)

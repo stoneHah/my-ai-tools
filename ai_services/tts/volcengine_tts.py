@@ -10,7 +10,7 @@ import json
 import gzip
 import copy
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator, BinaryIO, List
+from typing import Dict, Any, Optional, AsyncGenerator, BinaryIO, List, Tuple
 
 from ai_services.tts.base import TTSServiceBase
 from ai_services.storage.registry import get_storage_service
@@ -175,14 +175,16 @@ class VolcengineTTSService(TTSServiceBase):
         # 获取合成的音频数据
         audio_data = await self.synthesize(text, voice_id, **kwargs)
         
+        # 确保目录存在
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        
         # 保存到文件
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'wb') as f:
+        with open(output_path, "wb") as f:
             f.write(audio_data)
         
         return output_path
     
-    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> str:
+    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> Tuple[str, float]:
         """
         将文本合成为语音并保存到对象存储服务(OSS)
         
@@ -194,7 +196,7 @@ class VolcengineTTSService(TTSServiceBase):
             **kwargs: 其他参数，如速度、音量、音调等
             
         Returns:
-            OSS中的对象URL
+            (OSS中的对象URL, 音频时长(秒))
         """
         # 获取合成的音频数据
         audio_data = await self.synthesize(text, voice_id, **kwargs)
@@ -228,7 +230,11 @@ class VolcengineTTSService(TTSServiceBase):
             content_type=content_type
         )
         
-        return url
+        # 获取音频时长
+        from common.utils import get_audio_duration_from_bytes_async
+        audio_duration = await get_audio_duration_from_bytes_async(audio_data, encoding)
+        
+        return url, audio_duration
     
     def _create_request_json(self, text: str, voice_id: str, **kwargs) -> Dict[str, Any]:
         """

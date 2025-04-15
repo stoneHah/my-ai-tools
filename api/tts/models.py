@@ -103,3 +103,4 @@ class TTSSynthesizeResponse(BaseModel):
     object_key: Optional[str] = Field(None, description="OSS对象键名")
     content_type: str = Field(..., description="内容类型，如audio/mp3")
     service_name: str = Field(..., description="使用的TTS服务名称")
+    duration: Optional[float] = Field(None, description="音频时长（秒）")

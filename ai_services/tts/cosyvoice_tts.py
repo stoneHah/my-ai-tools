@@ -9,7 +9,7 @@ import os
 import random
 import string
 from datetime import datetime
-from typing import Dict, Any, List, Optional, AsyncGenerator
+from typing import Dict, Any, List, Optional, AsyncGenerator, Tuple
 
 import dashscope
 from dashscope.audio.tts_v2 import SpeechSynthesizer,VoiceEnrollmentService
@@ -155,14 +155,16 @@ class CosyVoiceTTSService(TTSServiceBase, VoiceCloneServiceBase):
         # 获取合成的音频数据
         audio_data = await self.synthesize(text, voice_id, **kwargs)
         
+        # 确保目录存在
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        
         # 保存到文件
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'wb') as f:
+        with open(output_path, "wb") as f:
             f.write(audio_data)
         
         return output_path
     
-    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> str:
+    async def save_to_oss(self, text: str, voice_id: str, object_key: str, oss_provider: str = "aliyun", **kwargs) -> Tuple[str, float]:
         """
         将文本合成为语音并保存到对象存储服务(OSS)
         
@@ -174,7 +176,7 @@ class CosyVoiceTTSService(TTSServiceBase, VoiceCloneServiceBase):
             **kwargs: 其他参数，如速度、音量、音调等
             
         Returns:
-            OSS中的对象URL
+            (OSS中的对象URL, 音频时长(秒))
         """
         # 获取合成的音频数据
         audio_data = await self.synthesize(text, voice_id, **kwargs)
@@ -182,13 +184,37 @@ class CosyVoiceTTSService(TTSServiceBase, VoiceCloneServiceBase):
         # 获取存储服务
         storage_service = get_storage_service(oss_provider)
         if not storage_service:
-            raise Exception(f"找不到存储服务: {oss_provider}")
+            raise ValueError(f"未找到存储服务提供商: {oss_provider}")
+        
+        # 获取音频格式
+        encoding = kwargs.get("encoding", "mp3").lower()
+        
+        # 确保对象键有正确的扩展名
+        if "." not in os.path.basename(object_key):
+            object_key += f".{encoding}"
+        
+        # 根据音频格式设置正确的content_type
+        content_type_map = {
+            "mp3": "audio/mpeg",
+            "wav": "audio/wav",
+            "ogg": "audio/ogg",
+            "aac": "audio/aac",
+            "flac": "audio/flac"
+        }
+        content_type = kwargs.get("content_type", content_type_map.get(encoding, "audio/mpeg"))
         
         # 上传到OSS
-        content_type = "audio/mpeg" if kwargs.get("format", "mp3") == "mp3" else "audio/wav"
-        url = await storage_service.upload_data(audio_data, object_key, content_type=content_type)
+        url = await storage_service.upload_data(
+            audio_data, 
+            object_key, 
+            content_type=content_type
+        )
         
-        return url
+        # 获取音频时长
+        from common.utils import get_audio_duration_from_bytes_async
+        audio_duration = await get_audio_duration_from_bytes_async(audio_data, encoding)
+        
+        return url, audio_duration
     
     async def create_clone_voice(self, sample_url: str, voice_name: str, user_id: str, app_id: str, **kwargs) -> Dict[str, Any]:
         """
@@ -360,24 +386,24 @@ class CosyVoiceTTSService(TTSServiceBase, VoiceCloneServiceBase):
     
     def _prepare_params(self, text: str, voice_id: str, **kwargs) -> Dict[str, Any]:
         """
-        u51c6u5907APIu8bf7u6c42u53c2u6570
+        准备API请求参数
         
         Args:
-            text: u8981u5408u6210u7684u6587u672c
-            voice_id: u97f3u8272ID
-            **kwargs: u5176u4ed6u53c2u6570
+            text: 要合成的文本
+            voice_id: 音色ID
+            **kwargs: 其他参数
             
         Returns:
-            u8bf7u6c42u53c2u6570u5b57u5178
+            请求参数字典
         """
-        # u590du5236u9ed8u8ba4u53c2u6570
+        # 复制默认参数
         params = self.default_params.copy()
         
-        # u66f4u65b0u57fau672cu53c2u6570
+        # 更新请求参数
         params["text"] = text
         params["voice_id"] = voice_id
         
-        # u8bbeu7f6eu9ed8u8ba4u503c
+        # 更新其他参数
         params["format"] = kwargs.get("format", "mp3")
         params["sample_rate"] = kwargs.get("sample_rate", 24000)
         params["speed_ratio"] = float(kwargs.get("speed", 1.0))
