@@ -92,3 +92,4 @@ class TTSCloneSynthesizeResponse(BaseModel):
     voice_id: str = Field(..., description="音色ID")
     text: str = Field(..., description="合成的文本")
     format: str = Field(..., description="音频格式")
+    duration: float = Field(..., description="音频时长（秒）")
