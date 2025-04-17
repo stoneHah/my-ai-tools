@@ -140,10 +140,10 @@ async def startup_event():
         logger.info(f"已注册Coze聊天服务: {coze_service.service_name}")
     
     # 注册Coze工作流服务
-    from ai_services.coze_workflow import register_coze_workflow_service
-    workflow_service = register_coze_workflow_service()
-    if workflow_service:
-        logger.info(f"已注册Coze工作流服务: {workflow_service.service_name}")
+    from ai_services.workflow.registry import register_all_workflow_services
+    workflow_services = register_all_workflow_services()
+    if workflow_services:
+        logger.info(f"已注册工作流服务: {', '.join(workflow_services.keys())}")
     
     # 注册图像服务
     from ai_services.image.registry import register_all_image_services
