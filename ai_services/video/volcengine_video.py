@@ -277,7 +277,8 @@ class VolcengineVideoService(VideoServiceBase):
             
             # 如果任务失败，添加错误信息
             elif our_status == "failed":
-                error_message = task_result.failure_reason or "未知错误"
+                logger.error(f"任务 '{task_id}' 失败: {task_result}")
+                error_message = task_result.error.message or "未知错误"
                 response["error"] = error_message
                 
                 # 更新数据库任务状态
