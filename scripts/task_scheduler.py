@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from db.config import get_db
 from db.service.task_service import TaskService
 from ai_services.video.registry import VideoServiceRegistry
+from ai_services.image.registry import ImageServiceRegistry
 
 # 配置日志
 logging.basicConfig(
@@ -73,12 +74,53 @@ class TaskScheduler:
         except Exception as e:
             logger.error(f"检查视频任务状态时出错: {str(e)}", exc_info=True)
     
+    async def check_image_tasks(self):
+        """检查图像生成任务状态"""
+        try:
+            # 获取所有未完成的图像任务
+            pending_tasks = self.task_service.list_tasks(
+                service_type="image",
+                status=["pending", "running"],
+                limit=100
+            )
+            
+            if not pending_tasks:
+                logger.info("没有待处理的图像任务")
+                return
+            
+            logger.info(f"发现 {len(pending_tasks)} 个待处理的图像任务")
+            
+            # 检查每个任务的状态
+            for task in pending_tasks:
+                try:
+                    # 获取服务实例
+                    service = ImageServiceRegistry.get_service(task.service_name)
+                    if not service:
+                        logger.warning(f"找不到服务 '{task.service_name}'，跳过任务 '{task.task_id}'")
+                        continue
+                    
+                    # 获取任务结果
+                    logger.info(f"正在检查任务 '{task.task_id}' 的状态")
+                    result = await service.get_image_task_result(task_id=task.task_id)
+                    
+                    # 任务状态已经在服务实现中更新到数据库
+                    logger.info(f"任务 '{task.task_id}' 的状态为 '{result['status']}'")
+                    
+                except Exception as e:
+                    logger.error(f"检查任务 '{task.task_id}' 状态时出错: {str(e)}", exc_info=True)
+            
+        except Exception as e:
+            logger.error(f"检查图像任务状态时出错: {str(e)}", exc_info=True)
+    
     async def run_once(self):
         """运行一次任务检查"""
         logger.info("开始检查任务状态")
         
         # 检查视频任务
         await self.check_video_tasks()
+        
+        # 检查图像任务
+        await self.check_image_tasks()
         
         # 未来可以添加其他类型的任务检查
         
