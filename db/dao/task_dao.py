@@ -133,6 +133,9 @@ class TaskDAO(BaseDAO[Task]):
         Returns:
             任务记录列表
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         query = db.query(Task)
         
         if service_type:
@@ -144,10 +147,26 @@ class TaskDAO(BaseDAO[Task]):
         if status:
             if isinstance(status, list):
                 query = query.filter(Task.status.in_(status))
+                logger.info(f"查询状态列表: {status}")
             else:
                 query = query.filter(Task.status == status)
+                logger.info(f"查询状态: {status}")
         
-        return query.order_by(desc(Task.created_at)).offset(skip).limit(limit).all()
+        # 添加SQL语句日志
+        sql = str(query.statement.compile(
+            dialect=db.bind.dialect,
+            compile_kwargs={"literal_binds": True}
+        ))
+        logger.info(f"执行SQL查询: {sql}")
+        
+        results = query.order_by(desc(Task.created_at)).offset(skip).limit(limit).all()
+        
+        # 记录查询结果
+        result_info = [f"ID: {task.task_id}, 状态: {task.status}" for task in results]
+        logger.info(f"查询结果数量: {len(results)}")
+        logger.info(f"查询结果: {result_info}")
+        
+        return results
     
     @staticmethod
     def delete_task(db: Session, task_id: str) -> bool:

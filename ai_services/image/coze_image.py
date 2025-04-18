@@ -197,12 +197,31 @@ class CozeImageService(ImageGenerationServiceBase):
         execute_id = task_id  # 默认使用task_id作为execute_id
         if self.task_service:
             try:
-                task = self.task_service.get_task(task_id)
+                # 添加日志，记录查询前的信息
+                logger.info(f"正在查询任务 '{task_id}' 的状态")
+                
+                # 确保获取最新数据
+                task = self.task_service.get_task(task_id, refresh=True)
+                
                 if not task:
                     raise ResourceNotFoundException(
                         resource_type="Task",
                         resource_id=task_id
                     )
+                
+                # 添加日志，记录任务状态
+                logger.info(f"数据库中任务 '{task_id}' 的状态为: {task.status}")
+                
+                # 如果任务已经完成，直接返回结果
+                if task.status == "completed" and task.result:
+                    logger.info(f"任务 '{task_id}' 已完成，直接返回结果")
+                    return {
+                        "task_id": task_id,
+                        "status": task.status,
+                        "images": task.result.get("images", []),
+                        "created_at": task.created_at.timestamp() if task.created_at else None,
+                        "completed_at": task.completed_at.timestamp() if task.completed_at else None
+                    }
                 
                 # 如果任务存在于数据库中，获取execute_id
                 if task.task_specific_data and "execute_id" in task.task_specific_data:
@@ -240,25 +259,30 @@ class CozeImageService(ImageGenerationServiceBase):
                 execute_id=execute_id
             )
         except Exception as e:
-            error_msg = f"获取任务状态失败: {str(e)}"
+            error_msg = f"获取任务状态失败: {str(e)},workflow_id: {workflow_id}, execute_id: {execute_id}"
             logger.error(error_msg, exc_info=True)
+
+            return {
+                "task_id": task_id,
+                "status": "running"
+            }
             
             # 更新数据库中的任务状态
-            if self.task_service:
-                try:
-                    self.task_service.update_task(
-                        task_id=task_id,
-                        status="error",
-                        error_message=error_msg
-                    )
-                except Exception as db_error:
-                    logger.error(f"更新任务状态到数据库失败: {str(db_error)}", exc_info=True)
+            # if self.task_service:
+            #     try:
+            #         self.task_service.update_task(
+            #             task_id=task_id,
+            #             status="error",
+            #             error_message=error_msg
+            #         )
+            #     except Exception as db_error:
+            #         logger.error(f"更新任务状态到数据库失败: {str(db_error)}", exc_info=True)
             
-            raise ServiceUnavailableException(
-                service_name=self.service_name,
-                reason=error_msg,
-                details={"task_id": task_id, "execute_id": execute_id}
-            )
+            # raise ServiceUnavailableException(
+            #     service_name=self.service_name,
+            #     reason=error_msg,
+            #     details={"task_id": task_id, "execute_id": execute_id}
+            # )
         
         # 检查运行状态
         if run_history.execute_status == WorkflowExecuteStatus.FAIL:
@@ -383,8 +407,6 @@ def register_coze_image_service(task_service: Optional[TaskService] = None) -> O
         workflow_id=workflow_id,
         task_service=task_service
     )
-    # 注册到通用服务注册表
-    AIServiceRegistry.register(service)
     # 同时注册到图像服务注册表
     ImageServiceRegistry.register(service)
     

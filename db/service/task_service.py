@@ -1,7 +1,7 @@
 """
 任务服务层
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,15 @@ class TaskService:
             db: 数据库会话
         """
         self.db = db
+    
+    def refresh_session(self):
+        """
+        刷新数据库会话，确保获取最新数据
+        
+        在需要确保获取最新数据的场景下调用此方法，
+        例如长时间运行的应用程序中的定期查询
+        """
+        self.db.expire_all()
     
     def create_task(
         self,
@@ -59,17 +68,27 @@ class TaskService:
         self.db.refresh(task)
         return task
     
-    def get_task(self, task_id: str) -> Optional[Task]:
+    def get_task(self, task_id: str, refresh: bool = True) -> Optional[Task]:
         """
         获取任务
         
         Args:
             task_id: 任务ID
+            refresh: 是否在查询前刷新会话，确保获取最新数据
             
         Returns:
             任务，如果不存在则返回None
         """
-        return TaskDAO.get_task_by_id(db=self.db, task_id=task_id)
+        if refresh:
+            self.refresh_session()
+            
+        task = TaskDAO.get_task_by_id(db=self.db, task_id=task_id)
+        
+        # 如果找到了任务，确保刷新实例
+        if task and refresh:
+            self.db.refresh(task)
+            
+        return task
     
     def update_task(
         self,
@@ -111,9 +130,10 @@ class TaskService:
         self,
         service_type: Optional[str] = None,
         service_name: Optional[str] = None,
-        status: Optional[str] = None,
+        status: Optional[Union[str, List[str]]] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        refresh: bool = True
     ) -> List[Task]:
         """
         列出任务
@@ -121,13 +141,17 @@ class TaskService:
         Args:
             service_type: 服务类型过滤
             service_name: 服务名称过滤
-            status: 状态过滤
+            status: 状态过滤，可以是单个状态字符串或状态列表
             skip: 跳过记录数
             limit: 返回记录数限制
+            refresh: 是否在查询前刷新会话，确保获取最新数据
             
         Returns:
             任务列表
         """
+        if refresh:
+            self.refresh_session()
+            
         return TaskDAO.list_tasks(
             db=self.db,
             service_type=service_type,

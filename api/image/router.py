@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 
-from ai_services.base import AIServiceRegistry
+from ai_services.image.registry import ImageServiceRegistry
 from ai_services.image.base import ImageGenerationServiceBase
 from api.image.models import (
     ImageGenerationRequest, 
@@ -42,7 +42,7 @@ async def create_image_task(
     根据提供的提示词创建图像生成任务，返回任务ID
     """
     service_name = request.service_name
-    service = AIServiceRegistry.get_service(service_name, "image")
+    service = ImageServiceRegistry.get_service(service_name)
     
     if not service:
         raise ResourceNotFoundException(
@@ -101,7 +101,7 @@ async def get_image_task_result(
         )
     
     service_name = task.service_name
-    service = AIServiceRegistry.get_service(service_name, "image")
+    service = ImageServiceRegistry.get_service(service_name)
     
     if not service:
         raise ResourceNotFoundException(
@@ -113,8 +113,7 @@ async def get_image_task_result(
     try:
         # 获取任务结果
         result = await service.get_image_task_result(
-            task_id=request.task_id,
-            parameters=request.parameters
+            task_id=request.task_id
         )
         
         return normalize_response(result)

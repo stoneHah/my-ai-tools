@@ -30,8 +30,8 @@ class BaseDAO(Generic[T]):
         Returns:
             记录，如果不存在则返回None
         """
-        # 刷新会话，确保获取最新数据
-        db.flush()
+        # 提交任何挂起的事务，确保获取最新数据
+        db.commit()
         
         # 构建查询并执行
         return db.query(model).filter(getattr(model, id_field) == id_value).first()
@@ -62,8 +62,8 @@ class BaseDAO(Generic[T]):
         Returns:
             记录列表
         """
-        # 刷新会话，确保获取最新数据
-        db.flush()
+        # 提交任何挂起的事务，确保获取最新数据
+        db.commit()
         
         # 构建查询
         query = db.query(model)
