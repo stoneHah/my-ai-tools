@@ -13,6 +13,7 @@ from cozepy import AsyncCoze, TokenAuth, WorkflowExecuteStatus
 
 from ai_services.base import AIServiceRegistry
 from ai_services.image.base import ImageGenerationServiceBase
+from ai_services.image.registry import ImageServiceRegistry
 from db.service import TaskService
 from common.exceptions import (
     BusinessException, 
@@ -382,7 +383,10 @@ def register_coze_image_service(task_service: Optional[TaskService] = None) -> O
         workflow_id=workflow_id,
         task_service=task_service
     )
+    # 注册到通用服务注册表
     AIServiceRegistry.register(service)
+    # 同时注册到图像服务注册表
+    ImageServiceRegistry.register(service)
     
     logger.info(f"已注册Coze图像生成服务，工作流ID: {workflow_id}")
     return service
