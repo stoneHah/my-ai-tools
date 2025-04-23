@@ -9,6 +9,8 @@ import json
 import logging
 import os
 
+from sqlalchemy.util import bool_or_str
+
 # 配置日志记录器
 logger = logging.getLogger(__name__)
 
@@ -145,6 +147,26 @@ async def stream_chat_completion(request: ChatRequest):
         raise HTTPException(status_code=404, detail=f"找不到服务: {request.service_name}")
     
     return await _create_stream_response(service, request)
+
+
+@router.post("/chat/stream/broadcast")
+async def stream_chat_completion_broadcast(request: ChatRequest):
+    """
+    口播文案扩写的流式接口
+    
+    Args:
+        request: 聊天请求
+        
+    Returns:
+        StreamingResponse: 流式对话完成结果
+    """
+    # 获取服务实例
+    service = AIServiceRegistry.get_service(request.service_name, request.service_type)
+    if not service:
+        raise HTTPException(status_code=404, detail=f"找不到服务: {request.service_name}")
+    broadcast_bot_id = os.getenv("COZE_DEFAULT_BROADCAST_BOT_ID")
+
+    return await _create_stream_response(service, request, bot_id=broadcast_bot_id)
 
 
 @router.post("/image/prompt_refinement")
