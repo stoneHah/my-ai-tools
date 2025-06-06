@@ -71,6 +71,19 @@ class StreamWorkflowResponse(BaseModel):
     is_final: bool = Field(False, description="是否为最终结果")
 
 
+class BroadcastScriptsRequest(BaseModel):
+    """批量生成口播文案请求模型"""
+    topic: str = Field(..., description="口播文案主题")
+    count: int = Field(5, description="生成文案数量，默认5个", ge=1, le=20)
+    service_name: Optional[str] = Field("coze", description="服务名称")
+    service_type: Optional[str] = Field("workflow", description="服务类型")
+
+
+class BroadcastScriptsResponse(BaseModel):
+    """批量生成口播文案响应模型"""
+    scripts: List[str] = Field(..., description="生成的口播文案列表")
+
+
 class ServicesListResponse(BaseModel):
     """服务列表响应模型"""
     services: Dict[str, List[str]] = Field(..., description="按类型分组的服务列表")

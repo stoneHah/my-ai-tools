@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 import logging
 import os
+import uuid
 
 from sqlalchemy.util import bool_or_str
 
@@ -16,9 +17,10 @@ logger = logging.getLogger(__name__)
 
 from .models import (
     ChatRequest, ChatResponse, ServicesListResponse,
-    ConversationResponse
+    ConversationResponse, BroadcastScriptsRequest, BroadcastScriptsResponse
 )
 from ai_services.base import AIServiceRegistry
+from common.exceptions import NotFoundError, AIServiceError
 
 # 创建API路由器
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -191,3 +193,51 @@ async def image_prompt_refinement(request: ChatRequest):
         raise Exception("未找到AI绘图提示词润色的Bot ID")
 
     return await _create_stream_response(service, request, bot_id=prompt_refinement_bot_id)
+
+
+@router.post("/broadcast-scripts", response_model=BroadcastScriptsResponse)
+async def generate_broadcast_scripts(request: BroadcastScriptsRequest):
+    """
+    批量生成口播文案
+    
+    Args:
+        request: 批量生成口播文案请求
+        
+    Returns:
+        BroadcastScriptsResponse: 包含生成的口播文案列表
+    """
+    # 获取服务实例 - 使用workflow服务
+    service = AIServiceRegistry.get_service(request.service_name, request.service_type)
+    if not service:
+        raise NotFoundError(message=f"找不到服务: {request.service_name}")
+    
+    # 验证是否为工作流服务
+    if service.service_type != "workflow":
+        raise NotFoundError(message=f"服务 {request.service_name} 不是工作流服务")
+    
+    # 准备工作流输入参数
+    input_params = {
+        "theme": request.topic,
+        "batch_num": request.count,
+    }
+    
+    # 获取工作流ID 
+    workflow_id = os.getenv("COZE_BATCH_KOUBO_COPYWRITE")
+    if not workflow_id:
+        raise AIServiceError(message="未配置批量生成口播文案的工作流ID (COZE_BATCH_KOUBO_COPYWRITE)")
+    
+    # 调用服务
+    try:
+        # 直接调用run_workflow方法获取结果
+        response = await service.run_workflow(
+            workflow_id=workflow_id,
+            input_params=input_params
+        )
+
+        logger.info(f"批量生成口播文案结果: {response}")
+        
+        # 构建响应
+        return BroadcastScriptsResponse(scripts=response['output'])
+    except Exception as e:
+        logger.error(f"批量生成口播文案出错: {str(e)}", exc_info=True)
+        raise AIServiceError(message=f"批量生成口播文案出错: {str(e)}")
