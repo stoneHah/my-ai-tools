@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 from .models import (
     ChatRequest, ChatResponse, ServicesListResponse,
-    ConversationResponse, BroadcastScriptsRequest, BroadcastScriptsResponse
+    ConversationResponse, BroadcastScriptsRequest, BroadcastScriptsResponse,
+    RewriteExplosiveContentRequest, RewriteExplosiveContentResponse
 )
 from ai_services.base import AIServiceRegistry
 from common.exceptions import NotFoundError, AIServiceError
@@ -241,3 +242,50 @@ async def generate_broadcast_scripts(request: BroadcastScriptsRequest):
     except Exception as e:
         logger.error(f"批量生成口播文案出错: {str(e)}", exc_info=True)
         raise AIServiceError(message=f"批量生成口播文案出错: {str(e)}")
+
+
+@router.post("/rewrite-explosive-content", response_model=RewriteExplosiveContentResponse)
+async def rewrite_explosive_content(request: RewriteExplosiveContentRequest):
+    """
+    爆款文案改写
+    
+    Args:
+        request: 爆款文案改写请求
+        
+    Returns:
+        RewriteExplosiveContentResponse: 包含改写后的爆款文案
+    """
+    # 获取服务实例 - 使用workflow服务
+    service = AIServiceRegistry.get_service(request.service_name, request.service_type)
+    if not service:
+        raise NotFoundError(message=f"找不到服务: {request.service_name}")
+    
+    # 验证是否为工作流服务
+    if service.service_type != "workflow":
+        raise NotFoundError(message=f"服务 {request.service_name} 不是工作流服务")
+    
+    # 准备工作流输入参数
+    input_params = {
+        "input": request.url,
+    }
+    
+    # 获取工作流ID 
+    workflow_id = os.getenv("COZE_HOT_COPYWRITING_REWRITING")
+    if not workflow_id:
+        raise AIServiceError(message="未配置爆款文案改写的工作流ID (COZE_HOT_COPYWRITING_REWRITING)")
+    
+    # 调用服务
+    try:
+        # 直接调用run_workflow方法获取结果
+        response = await service.run_workflow(
+            workflow_id=workflow_id,
+            input_params=input_params
+        )
+
+        logger.info(f"爆款文案改写结果: {response}")
+        
+        # 构建响应
+        return RewriteExplosiveContentResponse(content=response['output'])
+    except Exception as e:
+        logger.error(f"爆款文案改写出错: {str(e)}", exc_info=True)
+        raise AIServiceError(message=f"爆款文案改写出错: {str(e)}")

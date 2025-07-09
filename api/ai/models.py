@@ -84,6 +84,18 @@ class BroadcastScriptsResponse(BaseModel):
     scripts: List[str] = Field(..., description="生成的口播文案列表")
 
 
+class RewriteExplosiveContentRequest(BaseModel):
+    """爆款文案改写请求模型"""
+    url: str = Field(..., description="需要改写的内容链接")
+    service_name: Optional[str] = Field("coze", description="服务名称")
+    service_type: Optional[str] = Field("workflow", description="服务类型")
+
+
+class RewriteExplosiveContentResponse(BaseModel):
+    """爆款文案改写响应模型"""
+    content: str = Field(..., description="改写后的爆款文案")
+
+
 class ServicesListResponse(BaseModel):
     """服务列表响应模型"""
     services: Dict[str, List[str]] = Field(..., description="按类型分组的服务列表")
